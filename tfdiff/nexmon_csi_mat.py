@@ -255,14 +255,6 @@ def save_mat(filename, *, csi, seq_num, core_num):
     return output
 
 
-def one_hot_label(label, num_classes):
-    if label < 1 or label > num_classes:
-        raise ValueError(f"label must be in 1..{num_classes}; got {label}.")
-    values = [0] * num_classes
-    values[label - 1] = 1
-    return values
-
-
 def reduce_feature_bins(rows, target_bins=90):
     if target_bins <= 0:
         raise ValueError("target_bins must be positive.")
@@ -293,11 +285,10 @@ def reduce_feature_bins(rows, target_bins=90):
     return reduced
 
 
-def save_rf_original_mat(filename, *, feature, label, classes, source_filename=None):
-    cond = one_hot_label(label, len(classes))
+def save_rf_original_mat(filename, *, feature, cond, source_filename=None):
     elements = [
         _complex_matrix("feature", feature),
-        _uint8_matrix("cond", cond, [1, len(classes)]),
+        _uint8_matrix("cond", cond, [1, len(cond)]),
     ]
     if source_filename is not None:
         elements.append(_char_matrix("source_filename", [str(source_filename)]))
@@ -331,6 +322,29 @@ def label_from_filename(filename, classes=DEFAULT_CLASSES):
     return classes.index(letter) + 1
 
 
+def condition_from_filename(filename, classes=RF_ORIGINAL_CLASSES, label=None):
+    parts = Path(filename).stem.split("_")
+    if len(parts) < 4:
+        raise ValueError(
+            f"Cannot infer CSI condition from {filename}. "
+            "Expected a name like A_1_M1_P1.pcap."
+        )
+
+    activity = label if label is not None else label_from_filename(filename, classes=classes)
+    day_part, device_part, subject_part = parts[1:4]
+    try:
+        day_index = int(day_part)
+        device_id = int(device_part[1:] if device_part.upper().startswith("M") else device_part)
+        subject_id = int(subject_part[1:] if subject_part.upper().startswith("P") else subject_part)
+    except ValueError as exc:
+        raise ValueError(
+            f"Cannot infer CSI condition from {filename}. "
+            "Expected fields like day=1, device=M1, subject=P1."
+        ) from exc
+
+    return [activity, day_index, device_id, subject_id]
+
+
 def convert_pcap_to_rf_original(
     input_file,
     output_file,
@@ -348,19 +362,17 @@ def convert_pcap_to_rf_original(
             "Put the .pcap file there or pass the full path to your capture."
         )
 
-    if label is None:
-        label = label_from_filename(input_path, classes=classes)
+    cond = condition_from_filename(input_path, classes=classes, label=label)
 
     csi, _seq_num, _core_num = extract_csi(input_path, chip=chip, bw=bw)
     feature = reduce_feature_bins(csi, target_bins=target_bins)
     output = save_rf_original_mat(
         output_file,
         feature=feature,
-        label=label,
-        classes=classes,
+        cond=cond,
         source_filename=input_path.name,
     )
-    return output, len(csi), len(csi[0]), len(feature[0]), label
+    return output, len(csi), len(csi[0]), len(feature[0]), cond
 
 
 def convert_path_to_rf_original(
@@ -386,7 +398,7 @@ def convert_path_to_rf_original(
         outputs = []
         for offset, file_path in enumerate(files):
             output_file = output_base / f"user{start_index + offset:06d}.mat"
-            output, packets, subcarriers, feature_bins, file_label = convert_pcap_to_rf_original(
+            output, packets, subcarriers, feature_bins, file_cond = convert_pcap_to_rf_original(
                 file_path,
                 output_file,
                 chip=chip,
@@ -402,7 +414,7 @@ def convert_path_to_rf_original(
                     "packets": packets,
                     "subcarriers": subcarriers,
                     "feature_bins": feature_bins,
-                    "label": file_label,
+                    "cond": file_cond,
                 }
             )
         return outputs, summaries
@@ -411,7 +423,7 @@ def convert_path_to_rf_original(
     if output_file.suffix != ".mat":
         output_file.mkdir(parents=True, exist_ok=True)
         output_file = output_file / f"user{start_index:06d}.mat"
-    output, packets, subcarriers, feature_bins, file_label = convert_pcap_to_rf_original(
+    output, packets, subcarriers, feature_bins, file_cond = convert_pcap_to_rf_original(
         source,
         output_file,
         chip=chip,
@@ -426,7 +438,7 @@ def convert_path_to_rf_original(
             "packets": packets,
             "subcarriers": subcarriers,
             "feature_bins": feature_bins,
-            "label": file_label,
+            "cond": file_cond,
         }
     ]
 
@@ -444,14 +456,14 @@ def main(argv=None):
     parser.add_argument(
         "--rf-diffusion",
         action="store_true",
-        help="Save RF-Diffusion-style samples without windowing: feature [T x 90], cond uint8 [1 x 6].",
+        help="Save RF-Diffusion-style samples without windowing: feature [T x 90], cond uint8 [1 x 4].",
     )
     parser.add_argument(
         "--rf-original",
         action="store_true",
-        help="Save original RF-Diffusion-style samples: feature [T x 90], cond uint8 [1 x 6].",
+        help="Save original RF-Diffusion-style samples: feature [T x 90], cond uint8 [1 x 4].",
     )
-    parser.add_argument("--label", default=None, type=int, help="Override class label for RF outputs.")
+    parser.add_argument("--label", default=None, type=int, help="Override the activity index in cond.")
     parser.add_argument("--pattern", default="*.pcap", help="Directory glob pattern for RF outputs.")
     parser.add_argument(
         "--target-bins",
@@ -490,10 +502,10 @@ def main(argv=None):
         )
         for summary in summaries:
             print(
-                f"{summary['file'].name}: label={summary['label']} "
+                f"{summary['file'].name}: cond={summary['cond']} "
                 f"feature=[{summary['packets']} x {summary['feature_bins']}] "
                 f"from csi=[{summary['packets']} x {summary['subcarriers']}] "
-                f"cond=[1 x {len(classes)}] uint8"
+                f"cond_shape=[1 x 4] uint8"
             )
         print(f"Saved total RF-original files: {len(files)} -> {output_dir}")
     else:

@@ -1,10 +1,10 @@
 import struct
 
 from tfdiff.nexmon_csi_mat import (
+    condition_from_filename,
     convert_pcap_to_mat,
     convert_path_to_rf_original,
     extract_csi,
-    one_hot_label,
     reduce_feature_bins,
 )
 
@@ -79,8 +79,8 @@ def test_reduce_feature_bins_averages_complex_subcarriers():
     assert reduced == [[complex(0.5, -0.5), complex(2.5, -2.5), complex(4.5, -4.5)]]
 
 
-def test_one_hot_label_is_one_based():
-    assert one_hot_label(2, 6) == [0, 1, 0, 0, 0, 0]
+def test_condition_from_filename_uses_csi_metadata_fields():
+    assert condition_from_filename("F_2_M1_P3.pcap", classes="ABCDEF") == [6, 2, 1, 3]
 
 
 def test_convert_nexmon_csi_directory_to_rf_original(tmp_path):
@@ -104,7 +104,7 @@ def test_convert_nexmon_csi_directory_to_rf_original(tmp_path):
     )
 
     assert [path.name for path in outputs] == ["user000000.mat", "user000001.mat"]
-    assert [summary["label"] for summary in summaries] == [1, 2]
+    assert [summary["cond"] for summary in summaries] == [[1, 1, 1, 1], [2, 1, 1, 1]]
     assert [summary["feature_bins"] for summary in summaries] == [10, 10]
     data = outputs[0].read_bytes()
     assert data.startswith(b"MATLAB 5.0 MAT-file")
