@@ -2,9 +2,7 @@ import struct
 
 from tfdiff.nexmon_csi_mat import (
     convert_pcap_to_mat,
-    convert_path_to_rf_diffusion_windows,
     convert_path_to_rf_original,
-    convert_pcap_to_rf_diffusion_windows,
     extract_csi,
     one_hot_label,
     reduce_feature_bins,
@@ -71,56 +69,6 @@ def test_convert_nexmon_csi_to_mat_file(tmp_path):
     assert packets == 1
     assert subcarriers == 56
     assert mat.read_bytes().startswith(b"MATLAB 5.0 MAT-file")
-
-
-def test_convert_nexmon_csi_to_rf_diffusion_windows(tmp_path):
-    nfft = 64
-    words = [0] * 15
-    words[13] = 0x01020003
-    words.extend(_iq_word(i, i + 1) for i in range(nfft))
-    packet = struct.pack(f"<{len(words)}I", *words)
-    pcap = tmp_path / "A_1_M1_P1.pcap"
-    pcap.write_bytes(_classic_pcap_many([packet, packet, packet], nfft * 4 + 60))
-
-    output_dir = tmp_path / "rf"
-    outputs, packets, subcarriers, label = convert_pcap_to_rf_diffusion_windows(
-        pcap,
-        output_dir,
-        chip="4339",
-        bw=20,
-        window_size=2,
-        stride=1,
-    )
-
-    assert packets == 3
-    assert subcarriers == 56
-    assert label == 1
-    assert [path.name for path in outputs] == ["user000000.mat", "user000001.mat"]
-    assert outputs[0].read_bytes().startswith(b"MATLAB 5.0 MAT-file")
-
-
-def test_convert_nexmon_csi_directory_to_rf_diffusion_windows(tmp_path):
-    nfft = 64
-    words = [0] * 15
-    words[13] = 0x01020003
-    words.extend(_iq_word(i, i + 1) for i in range(nfft))
-    packet = struct.pack(f"<{len(words)}I", *words)
-    for name in ("A_1_M1_P1.pcap", "B_1_M1_P1.pcap"):
-        (tmp_path / name).write_bytes(_classic_pcap_many([packet, packet], nfft * 4 + 60))
-
-    output_dir = tmp_path / "rf"
-    outputs, summaries = convert_path_to_rf_diffusion_windows(
-        tmp_path,
-        output_dir,
-        chip="4339",
-        bw=20,
-        window_size=2,
-        stride=2,
-    )
-
-    assert [path.name for path in outputs] == ["user000000.mat", "user000001.mat"]
-    assert [summary["label"] for summary in summaries] == [1, 2]
-    assert [summary["windows"] for summary in summaries] == [1, 1]
 
 
 def test_reduce_feature_bins_averages_complex_subcarriers():

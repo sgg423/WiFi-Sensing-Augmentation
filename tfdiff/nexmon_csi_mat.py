@@ -228,12 +228,6 @@ def _char_matrix(name, values):
     return _matrix(name, MX_CHAR_CLASS, [rows, width], [_element(MI_UINT16, data)])
 
 
-def _double_matrix(name, values, dims):
-    flat_values = [float(value) for value in values]
-    data = struct.pack(f"<{len(flat_values)}d", *flat_values) if flat_values else b""
-    return _matrix(name, MX_DOUBLE_CLASS, list(dims), [_element(MI_DOUBLE, data)])
-
-
 def _uint8_matrix(name, values, dims):
     flat_values = [int(value) for value in values]
     if any(value < 0 or value > 255 for value in flat_values):
@@ -258,20 +252,6 @@ def save_mat(filename, *, csi, seq_num, core_num):
     output = Path(filename)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_bytes(_mat_header() + content)
-    return output
-
-
-def save_rf_diffusion_mat(filename, *, feature, cond, source_filename=None):
-    elements = [
-        _complex_matrix("feature", feature),
-        _double_matrix("cond", [cond], [1, 1]),
-    ]
-    if source_filename is not None:
-        elements.append(_char_matrix("source_filename", [str(source_filename)]))
-
-    output = Path(filename)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_bytes(_mat_header() + b"".join(elements))
     return output
 
 
@@ -349,108 +329,6 @@ def label_from_filename(filename, classes=DEFAULT_CLASSES):
             f"Expected filename starting with one of {classes!r}, e.g. A_1_M1_P1.pcap."
         )
     return classes.index(letter) + 1
-
-
-def iter_windows(rows, *, window_size=512, stride=512):
-    if window_size <= 0:
-        raise ValueError("window_size must be positive.")
-    if stride <= 0:
-        raise ValueError("stride must be positive.")
-    stop = len(rows) - window_size + 1
-    for start in range(0, max(0, stop), stride):
-        yield start, rows[start : start + window_size]
-
-
-def convert_pcap_to_rf_diffusion_windows(
-    input_file,
-    output_dir,
-    *,
-    chip="4366c0",
-    bw=80,
-    window_size=512,
-    stride=512,
-    label=None,
-    classes=DEFAULT_CLASSES,
-    start_index=0,
-):
-    input_path = Path(input_file)
-    if not input_path.is_file():
-        raise FileNotFoundError(
-            f"Input capture not found: {input_path}. "
-            "Put the .pcap file there or pass the full path to your capture."
-        )
-
-    if label is None:
-        label = label_from_filename(input_path, classes=classes)
-
-    csi, _seq_num, _core_num = extract_csi(input_path, chip=chip, bw=bw)
-    output_path = Path(output_dir)
-    written = []
-    for offset, (_start, window) in enumerate(
-        iter_windows(csi, window_size=window_size, stride=stride)
-    ):
-        filename = output_path / f"user{start_index + offset:06d}.mat"
-        written.append(
-            save_rf_diffusion_mat(
-                filename,
-                feature=window,
-                cond=label,
-                source_filename=input_path.name,
-            )
-        )
-
-    return written, len(csi), len(csi[0]), label
-
-
-def convert_path_to_rf_diffusion_windows(
-    input_path,
-    output_dir,
-    *,
-    chip="4366c0",
-    bw=80,
-    window_size=512,
-    stride=512,
-    label=None,
-    classes=DEFAULT_CLASSES,
-    start_index=0,
-    pattern="*.pcap",
-):
-    source = Path(input_path)
-    if source.is_dir():
-        files = sorted(source.glob(pattern))
-        if not files:
-            raise FileNotFoundError(f"No files matching {pattern!r} found in {source}.")
-    else:
-        files = [source]
-
-    all_outputs = []
-    summaries = []
-    next_index = start_index
-    for file_path in files:
-        outputs, packets, subcarriers, file_label = convert_pcap_to_rf_diffusion_windows(
-            file_path,
-            output_dir,
-            chip=chip,
-            bw=bw,
-            window_size=window_size,
-            stride=stride,
-            label=label,
-            classes=classes,
-            start_index=next_index,
-        )
-        all_outputs.extend(outputs)
-        summaries.append(
-            {
-                "file": file_path,
-                "windows": len(outputs),
-                "packets": packets,
-                "subcarriers": subcarriers,
-                "label": file_label,
-            }
-        )
-        next_index += len(outputs)
-
-    return all_outputs, summaries
 
 
 def convert_pcap_to_rf_original(
@@ -559,22 +437,20 @@ def main(argv=None):
     parser.add_argument(
         "output",
         nargs="?",
-        help="Output .mat file. With --rf-diffusion, output directory for user*.mat windows.",
+        help="Output .mat file. With RF output modes, output directory for user*.mat files.",
     )
     parser.add_argument("--chip", default="4366c0", help="4339, 4358, 43455c0, or 4366c0.")
     parser.add_argument("--bw", default=80, type=int, help="Bandwidth in MHz: 20 or 80.")
     parser.add_argument(
         "--rf-diffusion",
         action="store_true",
-        help="Save 512-window RF-Diffusion samples with feature/cond keys.",
+        help="Save RF-Diffusion-style samples without windowing: feature [T x 90], cond uint8 [1 x 6].",
     )
     parser.add_argument(
         "--rf-original",
         action="store_true",
         help="Save original RF-Diffusion-style samples: feature [T x 90], cond uint8 [1 x 6].",
     )
-    parser.add_argument("--window-size", default=512, type=int, help="Window size for --rf-diffusion.")
-    parser.add_argument("--stride", default=512, type=int, help="Window stride for --rf-diffusion.")
     parser.add_argument("--label", default=None, type=int, help="Override class label for RF outputs.")
     parser.add_argument("--pattern", default="*.pcap", help="Directory glob pattern for RF outputs.")
     parser.add_argument(
@@ -586,22 +462,20 @@ def main(argv=None):
     parser.add_argument(
         "--classes",
         default=None,
-        help="Class letters used to infer labels from filenames. Default: A-T, or A-F with --rf-original.",
+        help="Class letters used to infer labels from filenames. Default: A-F for RF outputs, otherwise A-T.",
     )
     parser.add_argument(
         "--start-index",
         default=0,
         type=int,
-        help="First user index for --rf-diffusion outputs.",
+        help="First user index for RF output files.",
     )
     args = parser.parse_args(argv)
 
-    if args.rf_diffusion and args.rf_original:
-        parser.error("--rf-diffusion and --rf-original cannot be used together.")
+    rf_output = args.rf_diffusion or args.rf_original
+    classes = args.classes or (RF_ORIGINAL_CLASSES if rf_output else DEFAULT_CLASSES)
 
-    classes = args.classes or (RF_ORIGINAL_CLASSES if args.rf_original else DEFAULT_CLASSES)
-
-    if args.rf_original:
+    if rf_output:
         output_dir = args.output or str(Path(args.input).with_suffix("")) + "_rf_original"
         files, summaries = convert_path_to_rf_original(
             args.input,
@@ -622,27 +496,6 @@ def main(argv=None):
                 f"cond=[1 x {len(classes)}] uint8"
             )
         print(f"Saved total RF-original files: {len(files)} -> {output_dir}")
-    elif args.rf_diffusion:
-        output_dir = args.output or str(Path(args.input).with_suffix("")) + "_rf"
-        files, summaries = convert_path_to_rf_diffusion_windows(
-            args.input,
-            output_dir,
-            chip=args.chip,
-            bw=args.bw,
-            window_size=args.window_size,
-            stride=args.stride,
-            label=args.label,
-            classes=classes,
-            start_index=args.start_index,
-            pattern=args.pattern,
-        )
-        for summary in summaries:
-            print(
-                f"{summary['file'].name}: label={summary['label']} "
-                f"csi=[{summary['packets']} x {summary['subcarriers']}] "
-                f"windows={summary['windows']}"
-            )
-        print(f"Saved total windows: {len(files)} -> {output_dir}")
     else:
         output, packets, subcarriers = convert_pcap_to_mat(
             args.input, args.output, chip=args.chip, bw=args.bw
