@@ -3,8 +3,11 @@ import struct
 from tfdiff.nexmon_csi_mat import (
     convert_pcap_to_mat,
     convert_path_to_rf_diffusion_windows,
+    convert_path_to_rf_original,
     convert_pcap_to_rf_diffusion_windows,
     extract_csi,
+    one_hot_label,
+    reduce_feature_bins,
 )
 
 
@@ -118,3 +121,44 @@ def test_convert_nexmon_csi_directory_to_rf_diffusion_windows(tmp_path):
     assert [path.name for path in outputs] == ["user000000.mat", "user000001.mat"]
     assert [summary["label"] for summary in summaries] == [1, 2]
     assert [summary["windows"] for summary in summaries] == [1, 1]
+
+
+def test_reduce_feature_bins_averages_complex_subcarriers():
+    rows = [[complex(idx, -idx) for idx in range(6)]]
+
+    reduced = reduce_feature_bins(rows, target_bins=3)
+
+    assert reduced == [[complex(0.5, -0.5), complex(2.5, -2.5), complex(4.5, -4.5)]]
+
+
+def test_one_hot_label_is_one_based():
+    assert one_hot_label(2, 6) == [0, 1, 0, 0, 0, 0]
+
+
+def test_convert_nexmon_csi_directory_to_rf_original(tmp_path):
+    nfft = 64
+    words = [0] * 15
+    words[13] = 0x01020003
+    words.extend(_iq_word(i, i + 1) for i in range(nfft))
+    packet = struct.pack(f"<{len(words)}I", *words)
+    for name in ("A_1_M1_P1.pcap", "B_1_M1_P1.pcap"):
+        (tmp_path / name).write_bytes(_classic_pcap_many([packet, packet], nfft * 4 + 60))
+
+    output_dir = tmp_path / "rf_original"
+    outputs, summaries = convert_path_to_rf_original(
+        tmp_path,
+        output_dir,
+        chip="4339",
+        bw=20,
+        classes="ABCDEF",
+        target_bins=10,
+        pattern="[A-F]_*.pcap",
+    )
+
+    assert [path.name for path in outputs] == ["user000000.mat", "user000001.mat"]
+    assert [summary["label"] for summary in summaries] == [1, 2]
+    assert [summary["feature_bins"] for summary in summaries] == [10, 10]
+    data = outputs[0].read_bytes()
+    assert data.startswith(b"MATLAB 5.0 MAT-file")
+    assert b"feature" in data
+    assert b"cond" in data

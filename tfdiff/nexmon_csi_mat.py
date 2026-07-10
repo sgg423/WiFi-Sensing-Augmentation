@@ -8,6 +8,7 @@ from pathlib import Path
 
 
 DEFAULT_CLASSES = "ABCDEFGHIJKLMNOPQRST"
+RF_ORIGINAL_CLASSES = "ABCDEF"
 
 PCAP_MAGIC_ENDIAN = {
     b"\xd4\xc3\xb2\xa1": "<",
@@ -17,6 +18,7 @@ PCAP_MAGIC_ENDIAN = {
 }
 
 MI_INT8 = 1
+MI_UINT8 = 2
 MI_INT32 = 5
 MI_UINT32 = 6
 MI_DOUBLE = 9
@@ -25,6 +27,7 @@ MI_MATRIX = 14
 
 MX_CHAR_CLASS = 4
 MX_DOUBLE_CLASS = 6
+MX_UINT8_CLASS = 9
 MX_COMPLEX = 0x0800
 
 
@@ -231,6 +234,14 @@ def _double_matrix(name, values, dims):
     return _matrix(name, MX_DOUBLE_CLASS, list(dims), [_element(MI_DOUBLE, data)])
 
 
+def _uint8_matrix(name, values, dims):
+    flat_values = [int(value) for value in values]
+    if any(value < 0 or value > 255 for value in flat_values):
+        raise ValueError("uint8 matrix values must be in the range 0..255.")
+    data = struct.pack(f"<{len(flat_values)}B", *flat_values) if flat_values else b""
+    return _matrix(name, MX_UINT8_CLASS, list(dims), [_element(MI_UINT8, data)])
+
+
 def _mat_header():
     text = b"MATLAB 5.0 MAT-file, Created by tfdiff.nexmon_csi_mat"
     return text.ljust(116, b" ") + (b"\x00" * 8) + struct.pack("<H2s", 0x0100, b"IM")
@@ -254,6 +265,59 @@ def save_rf_diffusion_mat(filename, *, feature, cond, source_filename=None):
     elements = [
         _complex_matrix("feature", feature),
         _double_matrix("cond", [cond], [1, 1]),
+    ]
+    if source_filename is not None:
+        elements.append(_char_matrix("source_filename", [str(source_filename)]))
+
+    output = Path(filename)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_bytes(_mat_header() + b"".join(elements))
+    return output
+
+
+def one_hot_label(label, num_classes):
+    if label < 1 or label > num_classes:
+        raise ValueError(f"label must be in 1..{num_classes}; got {label}.")
+    values = [0] * num_classes
+    values[label - 1] = 1
+    return values
+
+
+def reduce_feature_bins(rows, target_bins=90):
+    if target_bins <= 0:
+        raise ValueError("target_bins must be positive.")
+    if not rows:
+        return []
+
+    source_bins = len(rows[0])
+    if target_bins > source_bins:
+        raise ValueError(
+            f"target_bins={target_bins} cannot be larger than source subcarriers={source_bins}."
+        )
+    if target_bins == source_bins:
+        return rows
+
+    reduced = []
+    for row in rows:
+        if len(row) != source_bins:
+            raise ValueError("All CSI rows must have the same number of subcarriers.")
+        output_row = []
+        for bin_idx in range(target_bins):
+            start = round(bin_idx * source_bins / target_bins)
+            stop = round((bin_idx + 1) * source_bins / target_bins)
+            if stop <= start:
+                stop = start + 1
+            values = row[start:stop]
+            output_row.append(sum(values) / len(values))
+        reduced.append(output_row)
+    return reduced
+
+
+def save_rf_original_mat(filename, *, feature, label, classes, source_filename=None):
+    cond = one_hot_label(label, len(classes))
+    elements = [
+        _complex_matrix("feature", feature),
+        _uint8_matrix("cond", cond, [1, len(classes)]),
     ]
     if source_filename is not None:
         elements.append(_char_matrix("source_filename", [str(source_filename)]))
@@ -389,6 +453,106 @@ def convert_path_to_rf_diffusion_windows(
     return all_outputs, summaries
 
 
+def convert_pcap_to_rf_original(
+    input_file,
+    output_file,
+    *,
+    chip="4366c0",
+    bw=80,
+    label=None,
+    classes=RF_ORIGINAL_CLASSES,
+    target_bins=90,
+):
+    input_path = Path(input_file)
+    if not input_path.is_file():
+        raise FileNotFoundError(
+            f"Input capture not found: {input_path}. "
+            "Put the .pcap file there or pass the full path to your capture."
+        )
+
+    if label is None:
+        label = label_from_filename(input_path, classes=classes)
+
+    csi, _seq_num, _core_num = extract_csi(input_path, chip=chip, bw=bw)
+    feature = reduce_feature_bins(csi, target_bins=target_bins)
+    output = save_rf_original_mat(
+        output_file,
+        feature=feature,
+        label=label,
+        classes=classes,
+        source_filename=input_path.name,
+    )
+    return output, len(csi), len(csi[0]), len(feature[0]), label
+
+
+def convert_path_to_rf_original(
+    input_path,
+    output_dir,
+    *,
+    chip="4366c0",
+    bw=80,
+    label=None,
+    classes=RF_ORIGINAL_CLASSES,
+    target_bins=90,
+    start_index=0,
+    pattern="*.pcap",
+):
+    source = Path(input_path)
+    if source.is_dir():
+        files = sorted(source.glob(pattern))
+        if not files:
+            raise FileNotFoundError(f"No files matching {pattern!r} found in {source}.")
+        output_base = Path(output_dir)
+        output_base.mkdir(parents=True, exist_ok=True)
+        summaries = []
+        outputs = []
+        for offset, file_path in enumerate(files):
+            output_file = output_base / f"user{start_index + offset:06d}.mat"
+            output, packets, subcarriers, feature_bins, file_label = convert_pcap_to_rf_original(
+                file_path,
+                output_file,
+                chip=chip,
+                bw=bw,
+                label=label,
+                classes=classes,
+                target_bins=target_bins,
+            )
+            outputs.append(output)
+            summaries.append(
+                {
+                    "file": file_path,
+                    "packets": packets,
+                    "subcarriers": subcarriers,
+                    "feature_bins": feature_bins,
+                    "label": file_label,
+                }
+            )
+        return outputs, summaries
+
+    output_file = Path(output_dir)
+    if output_file.suffix != ".mat":
+        output_file.mkdir(parents=True, exist_ok=True)
+        output_file = output_file / f"user{start_index:06d}.mat"
+    output, packets, subcarriers, feature_bins, file_label = convert_pcap_to_rf_original(
+        source,
+        output_file,
+        chip=chip,
+        bw=bw,
+        label=label,
+        classes=classes,
+        target_bins=target_bins,
+    )
+    return [output], [
+        {
+            "file": source,
+            "packets": packets,
+            "subcarriers": subcarriers,
+            "feature_bins": feature_bins,
+            "label": file_label,
+        }
+    ]
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Convert Nexmon CSI .pcap files to .mat.")
     parser.add_argument("input", help="Input Nexmon CSI .pcap file or directory.")
@@ -404,14 +568,25 @@ def main(argv=None):
         action="store_true",
         help="Save 512-window RF-Diffusion samples with feature/cond keys.",
     )
+    parser.add_argument(
+        "--rf-original",
+        action="store_true",
+        help="Save original RF-Diffusion-style samples: feature [T x 90], cond uint8 [1 x 6].",
+    )
     parser.add_argument("--window-size", default=512, type=int, help="Window size for --rf-diffusion.")
     parser.add_argument("--stride", default=512, type=int, help="Window stride for --rf-diffusion.")
-    parser.add_argument("--label", default=None, type=int, help="Override class label for --rf-diffusion.")
-    parser.add_argument("--pattern", default="*.pcap", help="Directory glob pattern for --rf-diffusion.")
+    parser.add_argument("--label", default=None, type=int, help="Override class label for RF outputs.")
+    parser.add_argument("--pattern", default="*.pcap", help="Directory glob pattern for RF outputs.")
+    parser.add_argument(
+        "--target-bins",
+        default=90,
+        type=int,
+        help="Feature/subcarrier count for --rf-original. Default: 90.",
+    )
     parser.add_argument(
         "--classes",
-        default=DEFAULT_CLASSES,
-        help="Class letters used to infer labels from filenames. Default: A-T.",
+        default=None,
+        help="Class letters used to infer labels from filenames. Default: A-T, or A-F with --rf-original.",
     )
     parser.add_argument(
         "--start-index",
@@ -421,7 +596,33 @@ def main(argv=None):
     )
     args = parser.parse_args(argv)
 
-    if args.rf_diffusion:
+    if args.rf_diffusion and args.rf_original:
+        parser.error("--rf-diffusion and --rf-original cannot be used together.")
+
+    classes = args.classes or (RF_ORIGINAL_CLASSES if args.rf_original else DEFAULT_CLASSES)
+
+    if args.rf_original:
+        output_dir = args.output or str(Path(args.input).with_suffix("")) + "_rf_original"
+        files, summaries = convert_path_to_rf_original(
+            args.input,
+            output_dir,
+            chip=args.chip,
+            bw=args.bw,
+            label=args.label,
+            classes=classes,
+            target_bins=args.target_bins,
+            start_index=args.start_index,
+            pattern=args.pattern,
+        )
+        for summary in summaries:
+            print(
+                f"{summary['file'].name}: label={summary['label']} "
+                f"feature=[{summary['packets']} x {summary['feature_bins']}] "
+                f"from csi=[{summary['packets']} x {summary['subcarriers']}] "
+                f"cond=[1 x {len(classes)}] uint8"
+            )
+        print(f"Saved total RF-original files: {len(files)} -> {output_dir}")
+    elif args.rf_diffusion:
         output_dir = args.output or str(Path(args.input).with_suffix("")) + "_rf"
         files, summaries = convert_path_to_rf_diffusion_windows(
             args.input,
@@ -431,7 +632,7 @@ def main(argv=None):
             window_size=args.window_size,
             stride=args.stride,
             label=args.label,
-            classes=args.classes,
+            classes=classes,
             start_index=args.start_index,
             pattern=args.pattern,
         )
