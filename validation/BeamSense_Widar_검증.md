@@ -146,10 +146,31 @@ HAR-1 CSI M1
 
 ## 7. 이후 실험 계획
 
-1. 단일 링크 CSI tensor용 CNN baseline 구축
+1. 단일 링크 CSI tensor용 공개 SenseFi CNN baseline 구축
 2. CSI와 BFA에 동일한 공통 CNN backbone을 적용한 통제 비교
 3. CSI와 BFA tensor를 각각 RF-Diffusion으로 증강
 4. 실제 데이터만 사용한 경우와 합성 데이터를 추가한 경우의 정확도 비교
 5. 저데이터 및 participant-holdout 조건에서 증강 효과 분석
 
 비교 실험에서는 데이터 split, CNN 학습 조건, epoch, optimizer, random seed와 합성 데이터 비율을 동일하게 유지해야 한다.
+
+### SenseFi 기반 CSI 기준 성능
+
+단일 링크 CSI를 입력으로 받는 공개 벤치마크 SenseFi의 UT-HAR 모델을 사용한다. UT-HAR 입력은 `(1, 250, 90)`이고 HAR-1 RF MAT의 CSI feature는 `(N, 90)`이므로, 복소 CSI의 진폭을 250패킷 단위로 분할하면 입력 규격이 일치한다.
+
+공개 SenseFi의 LeNet 및 ResNet 구조를 유지하고 마지막 출력층만 UT-HAR의 7개 클래스에서 HAR-1의 20개 클래스로 변경한다. 이는 사전학습 모델을 그대로 평가하는 것이 아니라 검증된 공개 아키텍처를 HAR-1에 맞춰 처음부터 재학습하는 실험이다.
+
+```bash
+python scripts/har1_csi_to_sensefi.py \
+  --input-dir /home/leehan/RF-Diffusion/dataset/hug_CLI/HAR-1/CSI/M1_rf_original \
+  --output /home/leehan/datasets/har1_csi_sensefi_m1.h5
+
+python scripts/train_sensefi_har1.py \
+  --data /home/leehan/datasets/har1_csi_sensefi_m1.h5 \
+  --output-dir /home/leehan/results/sensefi_har1_lenet_random \
+  --model lenet --split random-window --epochs 50 --seed 111
+```
+
+BFI 결과와 비교할 1차 CSI 실험은 동일한 random-window 비율(70/15/15)과 seed 111을 사용한다. 일반화 성능은 별도로 `--split participant --test-participant 1`, `2`, `3`을 실행한다.
+
+> 상태: 변환 및 학습 코드의 구현과 문법 검증을 완료하였다. GPU 서버의 실제 정확도는 실행 완료 후 기록한다.
