@@ -1,4 +1,4 @@
-# BeamSense BFI 검증 및 Widar 3.0 적용 가능성 분석
+# CSI/BFI 센싱 기준 성능 및 적용 가능성 검증
 
 ## 1. 검증 목적
 
