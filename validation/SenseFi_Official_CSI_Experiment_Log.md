@@ -4,7 +4,7 @@
 
 | 날짜 | 이날 수행한 작업 | 핵심 결과 | 상태 | 다음 작업 |
 |---|---|---|---|---|
-| 2026-08-11 | HAR-1 공식 complex CSI 구조 확인; `(1000,242)` CSI를 SenseFi 입력 `(1,250,242)`로 변환; SenseFi ResNet18 in-domain 학습; cross-participant fold 1 평가 | In-domain accuracy **94.64%**; participant `2,3 → 1` accuracy **15.94%**; participant 14 실행은 테스트 샘플이 없어 무효 | 공식 CSI 변환 및 in-domain 완료; cross-participant 1/3 완료 | participant `1,3 → 2` 및 `1,2 → 3` 평가; 3-fold 평균±표준편차 계산 |
+| 2026-08-11 | HAR-1 공식 complex CSI 구조 확인; `(1000,242)` CSI를 SenseFi 입력 `(1,250,242)`로 변환; SenseFi ResNet18 in-domain 및 3-fold cross-participant 평가 | In-domain **94.64%**; cross-participant accuracy **14.51±1.69%**; participant 14 실행은 테스트 샘플이 없어 무효 | 공식 CSI 변환, in-domain 및 cross-participant real-only baseline 완료 | 동일 fold에서 CSI 증강 후 성능 측정; cross-environment 분할 검토 |
 
 새로운 작업이나 결과가 나오면 이 표에 날짜별로 한 행씩 추가한다. 실행
 명령어와 상세 결과는 아래 날짜별 작업 일지에 기록한다.
@@ -60,7 +60,7 @@ Result:
 This is the **SenseFi-based CSI random-window in-domain baseline**. It is not a
 cross-participant result.
 
-#### 4. SenseFi cross-participant baseline — in progress
+#### 4. SenseFi cross-participant baseline — completed
 
 Initial command:
 
@@ -120,9 +120,7 @@ python scripts/train_sensefi_har1.py \
 
 Interpretation: the model trained on participants 2 and 3 classified the 20
 activities of unseen participant 1 with 15.94% accuracy. This is a valid
-real-only cross-participant fold, but it is not yet the final cross-participant
-baseline. Held-out participant 2 and 3 must also be evaluated, followed by the
-mean and standard deviation across all three folds.
+real-only cross-participant fold.
 
 The large difference between the in-domain accuracy (94.64%) and held-out
 participant 1 accuracy (15.94%) indicates a substantial participant-domain
@@ -132,7 +130,28 @@ target condition for the subsequent augmentation experiment.
 Valid result location:
 `/home/leehan/results/sensefi_har1_official242_cross_user1/result.json`
 
-Status: **participant 1 completed; participants 2 and 3 pending.**
+#### 6. Held-out participants 2 and 3 — completed
+
+| Held-out participant | Training/validation participants | Train | Validation | Test | Accuracy | Macro-F1 | Macro-recall |
+|---:|---|---:|---:|---:|---:|---:|---:|
+| 2 | 1 and 3 | 25,423 | 2,825 | 12,920 | **14.95%** | **12.66%** | **14.16%** |
+| 3 | 1 and 2 | 24,624 | 2,736 | 13,808 | **12.64%** | **9.95%** | **12.69%** |
+
+#### 7. Final three-fold cross-participant baseline
+
+| Metric | Participant 1 | Participant 2 | Participant 3 | Mean ± sample SD |
+|---|---:|---:|---:|---:|
+| Accuracy | 15.94% | 14.95% | 12.64% | **14.51 ± 1.69%** |
+| Macro-F1 | 12.24% | 12.66% | 9.95% | **11.62 ± 1.46%** |
+| Macro-recall | 14.91% | 14.16% | 12.69% | **13.92 ± 1.13%** |
+
+Interpretation: the SenseFi CSI-amplitude model performs well in-domain
+(94.64%) but falls to 14.51% mean accuracy for unseen participants. The
+80.13-percentage-point gap is evidence of a strong participant-domain shift.
+This three-fold mean is the official **real-only cross-participant CSI
+baseline** for subsequent augmentation comparisons.
+
+Status: **all three participant folds completed.**
 
 ---
 
@@ -259,12 +278,12 @@ python scripts/train_sensefi_har1.py \
 | Held-out participant | Accuracy | Macro-F1 | Macro-recall | Result path |
 |---:|---:|---:|---:|---|
 | 1 | 15.94% | 12.24% | 14.91% | `/home/leehan/results/sensefi_har1_official242_cross_user1/result.json` |
-| 2 | TBD | TBD | TBD | `/home/leehan/results/sensefi_har1_official242_cross_user2/result.json` |
-| 3 | TBD | TBD | TBD | `/home/leehan/results/sensefi_har1_official242_cross_user3/result.json` |
+| 2 | 14.95% | 12.66% | 14.16% | `/home/leehan/results/sensefi_har1_official242_cross_user2/result.json` |
+| 3 | 12.64% | 9.95% | 12.69% | `/home/leehan/results/sensefi_har1_official242_cross_user3/result.json` |
+| Mean ± sample SD | **14.51 ± 1.69%** | **11.62 ± 1.46%** | **13.92 ± 1.13%** | Three-fold summary |
 
-When all participants have been evaluated, report both the individual results
-and their mean and standard deviation. Do not combine this value with the
-random-window in-domain result.
+All participants were evaluated. The mean and sample standard deviation are
+reported separately from the random-window in-domain result.
 
 ## 5. Result terminology
 
