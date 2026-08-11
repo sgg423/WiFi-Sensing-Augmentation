@@ -4,7 +4,7 @@
 
 | 날짜 | 이날 수행한 작업 | 핵심 결과 | 상태 | 다음 작업 |
 |---|---|---|---|---|
-| 2026-08-11 | HAR-1 공식 complex CSI 구조 확인; `(1000,242)` CSI를 SenseFi 입력 `(1,250,242)`로 변환; SenseFi ResNet18 in-domain 및 3-fold cross-participant 평가; 환경 메타데이터 점검 | In-domain **94.64%**; cross-participant accuracy **14.51±1.69%**; 현재 HDF5는 `day=1`, `monitor=1`만 포함 | 공식 CSI 변환, in-domain 및 cross-participant real-only baseline 완료; 현재 HDF5의 cross-environment 분할 불가 확인 | 다른 day/monitor 원본 폴더 확인; 환경별 HDF5 구성 후 cross-environment 평가 |
+| 2026-08-11 | HAR-1 공식 complex CSI 구조 확인; SenseFi in-domain 및 3-fold cross-participant 평가; 환경 메타데이터 점검; SignFi 기반 CSI baseline 코드 구축 | SenseFi in-domain **94.64%**; cross-participant **14.51±1.69%**; 현재 HDF5는 `day=1`, `monitor=1`만 포함; SignFi 측정 대기 | SenseFi real-only baseline 완료; SignFi amplitude+phase 변환기와 공식 CNN 구조 구현 완료 | GPU 서버에서 SignFi raw/sanitized-phase in-domain 측정; 이후 cross-participant 평가 |
 
 새로운 작업이나 결과가 나오면 이 표에 날짜별로 한 행씩 추가한다. 실행
 명령어와 상세 결과는 아래 날짜별 작업 일지에 기록한다.
@@ -174,6 +174,38 @@ must not be mixed through a random-window split.
 
 Status: **cross-environment evaluation pending additional environment-domain
 data.**
+
+#### 9. SignFi-based CSI baseline pipeline — implementation completed
+
+The next CSI baseline follows the SignFi example used as the CSI comparison
+family in BeamSense. Official HAR-1 complex CSI is converted into amplitude and
+phase. The two components are concatenated along image width, following the
+official SignFi input preparation.
+
+| Item | HAR-1 adaptation |
+|---|---|
+| Original complex CSI window | `(250,242)` |
+| SignFi amplitude | `(250,242)` |
+| SignFi phase | raw or unwrapped/linear-trend-removed `(250,242)` |
+| CNN input | `(1,250,484)` |
+| Architecture | Conv `4×4` (4 filters) → BN → ReLU → MaxPool `4×4` → FC |
+| Output adaptation | Original 276 signs → HAR-1 20 activities |
+| Optimizer | SGD, learning rate 0.01, momentum 0.9, L2 0.01 |
+
+Implemented files:
+
+- `scripts/har1_csi_to_signfi.py`
+- `scripts/train_signfi_har1.py`
+
+Two input variants will be reported separately:
+
+1. `raw`: CSI amplitude plus raw phase.
+2. `sanitized`: CSI amplitude plus unwrapped phase after removing the
+   per-packet linear phase trend over subcarriers. This is the primary variant
+   corresponding to the phase-preprocessing comparison discussed by BeamSense.
+
+Status: **implementation complete; GPU conversion and accuracy measurement
+pending.**
 
 ---
 
