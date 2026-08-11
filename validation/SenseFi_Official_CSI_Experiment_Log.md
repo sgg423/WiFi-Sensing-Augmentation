@@ -1,5 +1,14 @@
 # SenseFi Official CSI Experiment Log
 
+## 날짜별 한눈에 보기
+
+| 날짜 | 이날 수행한 작업 | 핵심 결과 | 상태 | 다음 작업 |
+|---|---|---|---|---|
+| 2026-08-11 | HAR-1 공식 complex CSI 구조 확인; `(1000,242)` CSI를 SenseFi 입력 `(1,250,242)`로 변환; SenseFi ResNet18 in-domain 학습; cross-participant fold 1 평가 | In-domain accuracy **94.64%**; participant `2,3 → 1` accuracy **15.94%**; participant 14 실행은 테스트 샘플이 없어 무효 | 공식 CSI 변환 및 in-domain 완료; cross-participant 1/3 완료 | participant `1,3 → 2` 및 `1,2 → 3` 평가; 3-fold 평균±표준편차 계산 |
+
+새로운 작업이나 결과가 나오면 이 표에 날짜별로 한 행씩 추가한다. 실행
+명령어와 상세 결과는 아래 날짜별 작업 일지에 기록한다.
+
 ## Work log by date
 
 ### 2026-08-11
@@ -53,7 +62,7 @@ cross-participant result.
 
 #### 4. SenseFi cross-participant baseline — in progress
 
-Current command:
+Initial command:
 
 ```bash
 python scripts/train_sensefi_har1.py \
@@ -66,15 +75,64 @@ python scripts/train_sensefi_har1.py \
   --seed 111
 ```
 
-Training and validation use participants other than participant 14. Participant
-14 is used only for the final test. The high `val_accuracy` printed during
-training is validation performance on the other participants; it is not the
-cross-participant accuracy for participant 14.
+This run was invalid because participant 14 does not exist in the converted
+dataset. It produced `test_samples: 0` and `NaN` metrics and must not be included
+in any baseline table.
 
-Final result location:
-`/home/leehan/results/sensefi_har1_official242_cross_user14/result.json`
+Actual participant sample counts:
 
-Status: **training in progress; final accuracy not recorded yet.**
+| Participant | Samples |
+|---:|---:|
+| 1 | 14,440 |
+| 2 | 12,920 |
+| 3 | 13,808 |
+
+Cross-participant evaluation must therefore use held-out participants 1, 2, and
+3. Training and validation use the other two participants, and the held-out
+participant is used only for the final test. The high `val_accuracy` printed
+during training measures validation performance on the training-domain
+participants; it is not the held-out-participant result.
+
+#### 5. Held-out participant 1 result — completed
+
+Training/validation participants: 2 and 3
+Test participant: 1
+
+```bash
+python scripts/train_sensefi_har1.py \
+  --data /home/leehan/datasets/har1_official_csi_242.h5 \
+  --output-dir /home/leehan/results/sensefi_har1_official242_cross_user1 \
+  --model resnet18 \
+  --split participant \
+  --test-participant 1 \
+  --epochs 50 \
+  --seed 111
+```
+
+| Item | Value |
+|---|---:|
+| Train samples | 24,055 |
+| Validation samples | 2,673 |
+| Test samples | 14,440 |
+| Accuracy | **15.94%** |
+| Macro-F1 | **12.24%** |
+| Macro-recall | **14.91%** |
+
+Interpretation: the model trained on participants 2 and 3 classified the 20
+activities of unseen participant 1 with 15.94% accuracy. This is a valid
+real-only cross-participant fold, but it is not yet the final cross-participant
+baseline. Held-out participant 2 and 3 must also be evaluated, followed by the
+mean and standard deviation across all three folds.
+
+The large difference between the in-domain accuracy (94.64%) and held-out
+participant 1 accuracy (15.94%) indicates a substantial participant-domain
+shift for the CSI-amplitude SenseFi baseline. This result is retained as a
+target condition for the subsequent augmentation experiment.
+
+Valid result location:
+`/home/leehan/results/sensefi_har1_official242_cross_user1/result.json`
+
+Status: **participant 1 completed; participants 2 and 3 pending.**
 
 ---
 
@@ -181,17 +239,17 @@ python -c "import h5py; p='/home/leehan/datasets/har1_official_csi_242.h5'; f=h5
 
 ### Command for one held-out participant
 
-The following example holds out participant 14.
+The following completed example holds out participant 1.
 
 ```bash
 cd /home/leehan/RF-Diffusion
 
 python scripts/train_sensefi_har1.py \
   --data /home/leehan/datasets/har1_official_csi_242.h5 \
-  --output-dir /home/leehan/results/sensefi_har1_official242_cross_user14 \
+  --output-dir /home/leehan/results/sensefi_har1_official242_cross_user1 \
   --model resnet18 \
   --split participant \
-  --test-participant 14 \
+  --test-participant 1 \
   --epochs 50 \
   --seed 111
 ```
@@ -200,7 +258,9 @@ python scripts/train_sensefi_har1.py \
 
 | Held-out participant | Accuracy | Macro-F1 | Macro-recall | Result path |
 |---:|---:|---:|---:|---|
-| 14 | TBD | TBD | TBD | `/home/leehan/results/sensefi_har1_official242_cross_user14/result.json` |
+| 1 | 15.94% | 12.24% | 14.91% | `/home/leehan/results/sensefi_har1_official242_cross_user1/result.json` |
+| 2 | TBD | TBD | TBD | `/home/leehan/results/sensefi_har1_official242_cross_user2/result.json` |
+| 3 | TBD | TBD | TBD | `/home/leehan/results/sensefi_har1_official242_cross_user3/result.json` |
 
 When all participants have been evaluated, report both the individual results
 and their mean and standard deviation. Do not combine this value with the
