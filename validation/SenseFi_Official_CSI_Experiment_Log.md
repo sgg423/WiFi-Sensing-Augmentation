@@ -4,7 +4,7 @@
 
 | 날짜 | 이날 수행한 작업 | 핵심 결과 | 상태 | 다음 작업 |
 |---|---|---|---|---|
-| 2026-08-11 | HAR-1 공식 complex CSI 구조 확인; SenseFi in-domain 및 3-fold cross-participant 평가; 환경 메타데이터 점검; SignFi 기반 CSI baseline 코드 구축 | SenseFi in-domain **94.64%**; cross-participant **14.51±1.69%**; 현재 HDF5는 `day=1`, `monitor=1`만 포함; SignFi 측정 대기 | SenseFi real-only baseline 완료; SignFi amplitude+phase 변환기와 공식 CNN 구조 구현 완료 | GPU 서버에서 SignFi raw/sanitized-phase in-domain 측정; 이후 cross-participant 평가 |
+| 2026-08-11 | HAR-1 공식 complex CSI 구조 확인; SenseFi in-domain 및 3-fold cross-participant 평가; 환경 메타데이터 점검; SignFi 기반 CSI baseline 구현 및 sanitized-phase 1차 측정 | SenseFi in-domain **94.64%**; cross-participant **14.51±1.69%**; SignFi sanitized-phase in-domain **25.05%** | SenseFi baseline 완료; SignFi 1차 결과는 입력 구조·수렴·phase 처리 확인이 필요한 preliminary baseline | SignFi 학습 history 확인; raw-phase 측정; epoch/normalization ablation 후 최종 SignFi baseline 확정 |
 
 새로운 작업이나 결과가 나오면 이 표에 날짜별로 한 행씩 추가한다. 실행
 명령어와 상세 결과는 아래 날짜별 작업 일지에 기록한다.
@@ -204,8 +204,36 @@ Two input variants will be reported separately:
    per-packet linear phase trend over subcarriers. This is the primary variant
    corresponding to the phase-preprocessing comparison discussed by BeamSense.
 
-Status: **implementation complete; GPU conversion and accuracy measurement
-pending.**
+Status: **implementation complete; sanitized-phase in-domain measurement
+completed; additional diagnostic runs pending.**
+
+#### 10. SignFi sanitized-phase in-domain result — preliminary
+
+| Item | Value |
+|---|---:|
+| Train samples | 28,817 |
+| Validation samples | 6,175 |
+| Test samples | 6,176 |
+| Accuracy | **25.05%** |
+| Macro-F1 | **22.31%** |
+| Macro-recall | **24.26%** |
+| Split | Random-window in-domain |
+| Epochs | 10 |
+| Seed | 111 |
+
+This result is above the 5% chance level for 20 classes but is substantially
+below the SenseFi baseline. It is retained as a preliminary result rather than
+discarded. Before defining it as the final SignFi baseline, the following must
+be checked:
+
+1. Whether validation accuracy was still increasing at epoch 10.
+2. Raw phase versus sanitized phase under the same split.
+3. Official SignFi zero-centering versus the current train-global
+   per-component min-max normalization.
+4. The effect of adapting SignFi from its original three-antenna input to the
+   single-link HAR-1 CSI input.
+
+Status: **preliminary result recorded; diagnostic and ablation runs pending.**
 
 ---
 
