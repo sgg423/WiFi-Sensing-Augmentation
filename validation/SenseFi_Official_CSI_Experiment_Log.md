@@ -4,7 +4,7 @@
 
 | 날짜 | 이날 수행한 작업 | 핵심 결과 | 상태 | 다음 작업 |
 |---|---|---|---|---|
-| 2026-08-11 | HAR-1 공식 complex CSI 구조 확인; `(1000,242)` CSI를 SenseFi 입력 `(1,250,242)`로 변환; SenseFi ResNet18 in-domain 및 3-fold cross-participant 평가 | In-domain **94.64%**; cross-participant accuracy **14.51±1.69%**; participant 14 실행은 테스트 샘플이 없어 무효 | 공식 CSI 변환, in-domain 및 cross-participant real-only baseline 완료 | 동일 fold에서 CSI 증강 후 성능 측정; cross-environment 분할 검토 |
+| 2026-08-11 | HAR-1 공식 complex CSI 구조 확인; `(1000,242)` CSI를 SenseFi 입력 `(1,250,242)`로 변환; SenseFi ResNet18 in-domain 및 3-fold cross-participant 평가; 환경 메타데이터 점검 | In-domain **94.64%**; cross-participant accuracy **14.51±1.69%**; 현재 HDF5는 `day=1`, `monitor=1`만 포함 | 공식 CSI 변환, in-domain 및 cross-participant real-only baseline 완료; 현재 HDF5의 cross-environment 분할 불가 확인 | 다른 day/monitor 원본 폴더 확인; 환경별 HDF5 구성 후 cross-environment 평가 |
 
 새로운 작업이나 결과가 나오면 이 표에 날짜별로 한 행씩 추가한다. 실행
 명령어와 상세 결과는 아래 날짜별 작업 일지에 기록한다.
@@ -152,6 +152,28 @@ This three-fold mean is the official **real-only cross-participant CSI
 baseline** for subsequent augmentation comparisons.
 
 Status: **all three participant folds completed.**
+
+#### 8. Cross-environment metadata inspection — completed
+
+The official-CSI HDF5 currently contains the following domains:
+
+| Metadata | Available values | Samples |
+|---|---|---:|
+| Participant | 1, 2, 3 | 14,440 / 12,920 / 13,808 |
+| Day | 1 only | 41,168 |
+| Monitor | 1 only | 41,168 |
+
+Every sample belongs to `day=1` and `monitor=1`. Therefore, this HDF5 cannot
+produce a valid cross-day or cross-monitor split. A cross-environment run on the
+current file would have either no held-out test samples or no training samples.
+
+Additional HAR-1 source folders containing different days, monitors, locations,
+or environments must be identified and converted before cross-environment
+evaluation. Environment domains must be separated before window generation and
+must not be mixed through a random-window split.
+
+Status: **cross-environment evaluation pending additional environment-domain
+data.**
 
 ---
 
