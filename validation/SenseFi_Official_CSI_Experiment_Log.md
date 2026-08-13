@@ -5,7 +5,7 @@
 | 날짜 | 이날 수행한 작업 | 핵심 결과 | 상태 | 다음 작업 |
 |---|---|---|---|---|
 | 2026-08-11 | HAR-1 공식 complex CSI 구조 확인; SenseFi in-domain 및 3-fold cross-participant 평가; 환경 메타데이터 점검; SignFi 기반 CSI baseline 구현 및 sanitized-phase 1차 측정 | SenseFi in-domain **94.64%**; cross-participant **14.51±1.69%**; SignFi sanitized-phase in-domain **25.05%** | SenseFi baseline 완료; SignFi 1차 결과는 입력 구조·수렴·phase 처리 확인이 필요한 preliminary baseline | SignFi 학습 history 확인; raw-phase 측정; epoch/normalization ablation 후 최종 SignFi baseline 확정 |
-| 2026-08-13 | HAR-3 Classroom M1 공식 CSI 추출 및 SenseFi HDF5 변환; HAR-3 in-domain 측정; HAR-1과 HAR-3를 분리하는 external-test 기능 추가 | HAR-3 in-domain accuracy **97.75%**, Macro-F1 **97.37%**, Macro-recall **97.37%** | HAR-3 데이터·라벨·전처리 파이프라인 정상 확인; cross-environment 입력 준비 완료 | HAR-1 Kitchen M1 → HAR-3 Classroom M1 cross-environment real-only baseline 측정 |
+| 2026-08-13 | HAR-3 Classroom M1 공식 CSI 추출 및 in-domain 측정; external-test 기능 구현; HAR-1 Kitchen M1 → HAR-3 Classroom M1 cross-environment 평가 | HAR-3 in-domain **97.75%**; HAR-1→HAR-3 cross-environment accuracy **52.64%**, Macro-F1 **54.83%**, Macro-recall **59.29%** | SenseFi CSI cross-environment real-only baseline 완료 | 역방향 HAR-3→HAR-1 측정; 동일 test set에서 CSI 증강 전후 비교 |
 
 새로운 작업이나 결과가 나오면 이 표에 날짜별로 한 행씩 추가한다. 실행
 명령어와 상세 결과는 아래 날짜별 작업 일지에 기록한다.
@@ -256,7 +256,7 @@ normalization parameters are also applied to the external test set, preventing
 target-environment normalization leakage.
 
 Status: **implementation complete; HAR-3 conversion and GPU evaluation
-in-domain evaluation completed; cross-environment evaluation pending.**
+in-domain and HAR-1 → HAR-3 cross-environment evaluations completed.**
 
 #### 3. HAR-3 Classroom M1 in-domain baseline — completed
 
@@ -275,6 +275,29 @@ HAR-1 in-domain accuracy of 94.64%, this confirms that both source and target
 datasets, labels, CSI extraction, and SenseFi preprocessing pipelines are
 operational. A low HAR-1 → HAR-3 result can therefore be interpreted primarily
 as an environment-domain shift rather than a broken HAR-3 dataset.
+
+#### 4. HAR-1 Kitchen M1 → HAR-3 Classroom M1 — completed
+
+| Metric | Result |
+|---|---:|
+| Accuracy | **52.64%** |
+| Macro-F1 | **54.83%** |
+| Macro-recall | **59.29%** |
+| Source train/validation | HAR-1 Kitchen M1 |
+| External test | HAR-3 Classroom M1, all samples |
+| Model | SenseFi ResNet18, 20 classes |
+| Seed | 111 |
+
+The model was trained and normalized only with HAR-1 source-domain data. HAR-3
+was reserved entirely for the final external test. Accuracy decreased by 42.00
+percentage points relative to the HAR-1 in-domain result (94.64%) and by 45.11
+percentage points relative to the HAR-3 in-domain result (97.75%). Since both
+datasets achieve high in-domain accuracy, this degradation provides evidence of
+a substantial Kitchen-to-Classroom environment-domain shift.
+
+This value is the **real-only CSI cross-environment baseline** for the
+HAR-1 → HAR-3 direction. The subsequent augmented experiment must keep the
+HAR-3 test set unchanged and add synthetic data only to source-domain training.
 
 ---
 
