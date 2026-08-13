@@ -5,7 +5,7 @@
 | 날짜 | 이날 수행한 작업 | 핵심 결과 | 상태 | 다음 작업 |
 |---|---|---|---|---|
 | 2026-08-11 | HAR-1 공식 complex CSI 구조 확인; SenseFi in-domain 및 3-fold cross-participant 평가; 환경 메타데이터 점검; SignFi 기반 CSI baseline 구현 및 sanitized-phase 1차 측정 | SenseFi in-domain **94.64%**; cross-participant **14.51±1.69%**; SignFi sanitized-phase in-domain **25.05%** | SenseFi baseline 완료; SignFi 1차 결과는 입력 구조·수렴·phase 처리 확인이 필요한 preliminary baseline | SignFi 학습 history 확인; raw-phase 측정; epoch/normalization ablation 후 최종 SignFi baseline 확정 |
-| 2026-08-13 | HAR-3 Classroom M1 공식 CSI 추출 및 in-domain 측정; external-test 기능 구현; HAR-1 Kitchen M1 → HAR-3 Classroom M1 cross-environment 평가 | HAR-3 in-domain **97.75%**; HAR-1→HAR-3 cross-environment accuracy **52.64%**, Macro-F1 **54.83%**, Macro-recall **59.29%** | SenseFi CSI cross-environment real-only baseline 완료 | 역방향 HAR-3→HAR-1 측정; 동일 test set에서 CSI 증강 전후 비교 |
+| 2026-08-13 | HAR-3 Classroom M1 공식 CSI 추출 및 in-domain 측정; external-test 기능 구현; HAR-1 Kitchen M1 ↔ HAR-3 Classroom M1 양방향 cross-environment 평가 | HAR-1→HAR-3 **52.64%**; HAR-3→HAR-1 **58.42%**; 양방향 평균 accuracy **55.53%**, Macro-F1 **49.99%**, Macro-recall **58.54%** | SenseFi CSI 양방향 cross-environment real-only baseline 완료 | 각 방향의 동일 test set에서 CSI 증강 전후 비교 |
 
 새로운 작업이나 결과가 나오면 이 표에 날짜별로 한 행씩 추가한다. 실행
 명령어와 상세 결과는 아래 날짜별 작업 일지에 기록한다.
@@ -298,6 +298,37 @@ a substantial Kitchen-to-Classroom environment-domain shift.
 This value is the **real-only CSI cross-environment baseline** for the
 HAR-1 → HAR-3 direction. The subsequent augmented experiment must keep the
 HAR-3 test set unchanged and add synthetic data only to source-domain training.
+
+#### 5. HAR-3 Classroom M1 → HAR-1 Kitchen M1 — completed
+
+| Metric | Result |
+|---|---:|
+| Accuracy | **58.42%** |
+| Macro-F1 | **45.15%** |
+| Macro-recall | **57.79%** |
+| Source train/validation | HAR-3 Classroom M1 |
+| External test | HAR-1 Kitchen M1, all samples |
+| Model | SenseFi ResNet18, 20 classes |
+| Seed | 111 |
+
+#### 6. Bidirectional cross-environment summary
+
+| Direction | Accuracy | Macro-F1 | Macro-recall |
+|---|---:|---:|---:|
+| HAR-1 Kitchen → HAR-3 Classroom | 52.64% | 54.83% | 59.29% |
+| HAR-3 Classroom → HAR-1 Kitchen | 58.42% | 45.15% | 57.79% |
+| Direction-level mean | **55.53%** | **49.99%** | **58.54%** |
+
+The reverse direction is 5.78 percentage points higher in accuracy, showing
+that cross-environment transfer is asymmetric. However, its Macro-F1 is lower
+than in the forward direction, indicating that the higher overall accuracy may
+be concentrated in a subset of activity classes. Per-class recall and the
+confusion matrix should be inspected before claiming that HAR-3 → HAR-1 is
+uniformly easier.
+
+The direction-level mean of 55.53% is reported only as a compact summary. Each
+direction remains a separate baseline because the source training set and test
+distribution differ.
 
 ---
 
