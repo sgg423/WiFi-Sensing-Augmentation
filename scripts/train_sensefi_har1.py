@@ -115,18 +115,36 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--data", type=Path, required=True); p.add_argument("--output-dir", type=Path, required=True)
     p.add_argument("--model", choices=["lenet", "resnet18"], default="lenet")
-    p.add_argument("--split", choices=["random-window", "participant"], default="random-window")
+    p.add_argument("--split", choices=["random-window", "participant", "external"], default="random-window")
+    p.add_argument("--test-data", type=Path,
+                   help="separate HDF5 used entirely for testing with --split external")
     p.add_argument("--test-participant", type=int); p.add_argument("--epochs", type=int, default=50)
     p.add_argument("--batch-size", type=int, default=64); p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--patience", type=int, default=8); p.add_argument("--seed", type=int, default=111)
     args = p.parse_args()
     if args.split == "participant" and args.test_participant is None: p.error("participant split requires --test-participant")
+    if args.split == "external" and args.test_data is None: p.error("external split requires --test-data")
     random.seed(args.seed); np.random.seed(args.seed); torch.manual_seed(args.seed)
     with h5py.File(args.data, "r") as f:
         labels, participants = f["y"][:], f["participant"][:]
-    train, val, test = split_indices(labels, participants, args.split, args.test_participant, args.seed)
+        input_shape = tuple(f["x"].shape[1:])
+    if args.split == "external":
+        all_idx = np.arange(len(labels))
+        train, val = train_test_split(all_idx, test_size=.1, random_state=args.seed, stratify=labels)
+        with h5py.File(args.test_data, "r") as f:
+            test_labels = f["y"][:]
+            test_shape = tuple(f["x"].shape[1:])
+        if test_shape != input_shape:
+            raise ValueError(f"train input shape {input_shape} differs from external test shape {test_shape}")
+        if set(np.unique(test_labels)) - set(np.unique(labels)):
+            raise ValueError("external test data contains labels absent from training data")
+        test = np.arange(len(test_labels))
+    else:
+        train, val, test = split_indices(labels, participants, args.split, args.test_participant, args.seed)
     low, high = minmax(args.data, train)
-    loaders = {name: DataLoader(H5Dataset(args.data, idx, low, high), batch_size=args.batch_size,
+    paths = {"train": args.data, "val": args.data,
+             "test": args.test_data if args.split == "external" else args.data}
+    loaders = {name: DataLoader(H5Dataset(paths[name], idx, low, high), batch_size=args.batch_size,
                                 shuffle=name == "train", num_workers=2, pin_memory=True)
                for name, idx in [("train", train), ("val", val), ("test", test)]}
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -148,6 +166,7 @@ def main():
     model.load_state_dict(torch.load(args.output_dir / "best.pt", map_location=device))
     result = {"model": args.model, "model_source": "official SenseFi UT-HAR architecture; output 7->20",
               "split": args.split, "test_participant": args.test_participant,
+              "train_data": str(args.data), "test_data": str(paths["test"]),
               "train_samples": len(train), "validation_samples": len(val), "test_samples": len(test),
               "normalization": "train-global-minmax", "seed": args.seed, **evaluate(model, loaders["test"], device)}
     with open(args.output_dir / "history.csv", "w", newline="") as f:

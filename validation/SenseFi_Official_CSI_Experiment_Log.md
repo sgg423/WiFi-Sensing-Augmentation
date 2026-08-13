@@ -5,6 +5,7 @@
 | 날짜 | 이날 수행한 작업 | 핵심 결과 | 상태 | 다음 작업 |
 |---|---|---|---|---|
 | 2026-08-11 | HAR-1 공식 complex CSI 구조 확인; SenseFi in-domain 및 3-fold cross-participant 평가; 환경 메타데이터 점검; SignFi 기반 CSI baseline 구현 및 sanitized-phase 1차 측정 | SenseFi in-domain **94.64%**; cross-participant **14.51±1.69%**; SignFi sanitized-phase in-domain **25.05%** | SenseFi baseline 완료; SignFi 1차 결과는 입력 구조·수렴·phase 처리 확인이 필요한 preliminary baseline | SignFi 학습 history 확인; raw-phase 측정; epoch/normalization ablation 후 최종 SignFi baseline 확정 |
+| 2026-08-13 | HAR-3 Classroom M1 공식 CSI 추출 완료; HAR-1과 HAR-3를 분리하는 external-test 기능 추가 | Cross-environment 입력 준비 완료; 정확도 측정 대기 | HAR-1 Kitchen M1 학습 → HAR-3 Classroom M1 테스트 가능 | HAR-3 HDF5 변환 후 SenseFi cross-environment real-only baseline 측정 |
 
 새로운 작업이나 결과가 나오면 이 표에 날짜별로 한 행씩 추가한다. 실행
 명령어와 상세 결과는 아래 날짜별 작업 일지에 기록한다.
@@ -234,6 +235,28 @@ be checked:
    single-link HAR-1 CSI input.
 
 Status: **preliminary result recorded; diagnostic and ablation runs pending.**
+
+### 2026-08-13
+
+#### 1. HAR-3 Classroom M1 official CSI extraction — completed
+
+- Source directory:
+  `/home/leehan/RF-Diffusion/dataset/hug_CLI/HAR-3/CSI/M1_rf_windows_1000`
+- Environment: Classroom
+- Device/link identifier: M1
+- Propagation condition: LoS
+- Target comparison: HAR-1 Kitchen M1 → HAR-3 Classroom M1
+
+#### 2. SenseFi external-environment evaluation support — completed
+
+`scripts/train_sensefi_har1.py` now supports `--split external` and
+`--test-data`. Training and validation are created only from the source HDF5,
+while every sample in the external HDF5 is reserved for testing. Source-train
+normalization parameters are also applied to the external test set, preventing
+target-environment normalization leakage.
+
+Status: **implementation complete; HAR-3 conversion and GPU evaluation
+pending.**
 
 ---
 
