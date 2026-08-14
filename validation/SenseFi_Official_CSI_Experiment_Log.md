@@ -330,6 +330,34 @@ The direction-level mean of 55.53% is reported only as a compact summary. Each
 direction remains a separate baseline because the source training set and test
 distribution differ.
 
+### 2026-08-14
+
+#### 1. M1-based BeamSense-style SignFi evaluation — implementation completed
+
+The SignFi evaluation is corrected to match the CSI comparison pipeline used by
+BeamSense rather than treating the original one-layer SignFi example CNN as the
+BeamSense comparison classifier.
+
+| Component | M1-based implementation |
+|---|---|
+| CSI source | Official HAR-1/HAR-3 M1 complex CSI |
+| Window | 10 CSI frames, non-overlapping |
+| Preprocessing | Amplitude + unwrapped, linear-trend-removed phase |
+| Input | Single-monitor `(1,10,484)` |
+| Classifier | BeamSense Fig. 7 VGG: three two-convolution blocks, 128→64→32 filters, MaxPool, FC |
+| Evaluation | Random-window in-domain and external cross-environment |
+
+This is explicitly named a **single-M1-monitor adaptation**. BeamSense's
+reported CSI comparison used M1, M2, and M3 monitors, so its reported 90–93%
+preprocessed-CSI accuracy is not an expected reproduction target for the M1-only
+experiment.
+
+The previously measured 25.05% remains recorded as an original SignFi example
+CNN adaptation and is excluded from the BeamSense-style SignFi baseline.
+
+Status: **code complete; HAR-1/HAR-3 10-frame conversion and GPU evaluation
+pending.**
+
 ---
 
 The sections below contain the full commands, result definitions, and reporting
