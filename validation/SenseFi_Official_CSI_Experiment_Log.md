@@ -6,6 +6,7 @@
 |---|---|---|---|---|
 | 2026-08-11 | HAR-1 공식 complex CSI 구조 확인; SenseFi in-domain 및 3-fold cross-participant 평가; 환경 메타데이터 점검; SignFi 기반 CSI baseline 구현 및 sanitized-phase 1차 측정 | SenseFi in-domain **94.64%**; cross-participant **14.51±1.69%**; SignFi sanitized-phase in-domain **25.05%** | SenseFi baseline 완료; SignFi 1차 결과는 입력 구조·수렴·phase 처리 확인이 필요한 preliminary baseline | SignFi 학습 history 확인; raw-phase 측정; epoch/normalization ablation 후 최종 SignFi baseline 확정 |
 | 2026-08-13 | HAR-3 Classroom M1 공식 CSI 추출 및 in-domain 측정; external-test 기능 구현; HAR-1 Kitchen M1 ↔ HAR-3 Classroom M1 양방향 cross-environment 평가 | HAR-1→HAR-3 **52.64%**; HAR-3→HAR-1 **58.42%**; 양방향 평균 accuracy **55.53%**, Macro-F1 **49.99%**, Macro-recall **58.54%** | SenseFi CSI 양방향 cross-environment real-only baseline 완료 | 각 방향의 동일 test set에서 CSI 증강 전후 비교 |
+| 2026-08-18 | RF-Diffusion 생성 HAR-1 M1 CSI 경로 확보; SenseFi 학습기에 synthetic train-only 입력 기능 추가 | 생성 경로 `/mnt/ssd1/leehan/M1_rf_generated_1000`; 증강 정확도 측정 준비 | Real validation/test 고정 및 synthetic의 train-only 추가 구현 완료 | 생성 MAT 구조 확인 → SenseFi HDF5 변환 → real+synthetic in-domain/cross-environment 측정 |
 
 새로운 작업이나 결과가 나오면 이 표에 날짜별로 한 행씩 추가한다. 실행
 명령어와 상세 결과는 아래 날짜별 작업 일지에 기록한다.
@@ -357,6 +358,33 @@ CNN adaptation and is excluded from the BeamSense-style SignFi baseline.
 
 Status: **code complete; HAR-1/HAR-3 10-frame conversion and GPU evaluation
 pending.**
+
+### 2026-08-18
+
+#### 1. RF-Diffusion-generated HAR-1 M1 CSI prepared
+
+- Generated MAT directory: `/mnt/ssd1/leehan/M1_rf_generated_1000`
+- Intended use: synthetic source-domain training data only
+- Prohibited use: validation, HAR-1 real test, and HAR-3 external test
+
+#### 2. Leakage-safe SenseFi augmentation input — implementation completed
+
+`scripts/train_sensefi_har1.py` now accepts `--augment-data`. The real-data
+split is generated with the same seed as the real-only baseline. Synthetic
+samples are appended only to the real training split, while validation and test
+loaders remain real-only. Min-max normalization is calculated from the real
+training split and reused for synthetic and test samples.
+
+This design allows a direct comparison:
+
+```text
+real-only baseline:      real source train → fixed real validation/test
+augmentation condition: real source train + synthetic source train
+                        → same fixed real validation/test
+```
+
+Status: **training support complete; generated-file structure validation and
+HDF5 conversion pending.**
 
 ---
 

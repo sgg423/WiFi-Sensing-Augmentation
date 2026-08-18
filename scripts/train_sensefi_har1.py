@@ -13,7 +13,7 @@ import torch
 from sklearn.metrics import accuracy_score, f1_score, recall_score
 from sklearn.model_selection import train_test_split
 from torch import nn
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import ConcatDataset, DataLoader, Dataset
 
 
 class H5Dataset(Dataset):
@@ -118,6 +118,8 @@ def main():
     p.add_argument("--split", choices=["random-window", "participant", "external"], default="random-window")
     p.add_argument("--test-data", type=Path,
                    help="separate HDF5 used entirely for testing with --split external")
+    p.add_argument("--augment-data", type=Path,
+                   help="synthetic HDF5 added only to the real training split")
     p.add_argument("--test-participant", type=int); p.add_argument("--epochs", type=int, default=50)
     p.add_argument("--batch-size", type=int, default=64); p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--patience", type=int, default=8); p.add_argument("--seed", type=int, default=111)
@@ -144,9 +146,31 @@ def main():
     low, high = minmax(args.data, train)
     paths = {"train": args.data, "val": args.data,
              "test": args.test_data if args.split == "external" else args.data}
-    loaders = {name: DataLoader(H5Dataset(paths[name], idx, low, high), batch_size=args.batch_size,
-                                shuffle=name == "train", num_workers=2, pin_memory=True)
-               for name, idx in [("train", train), ("val", val), ("test", test)]}
+    real_train_dataset = H5Dataset(args.data, train, low, high)
+    synthetic_samples = 0
+    if args.augment_data is not None:
+        with h5py.File(args.augment_data, "r") as f:
+            augment_shape = tuple(f["x"].shape[1:])
+            augment_labels = f["y"][:]
+            synthetic_samples = len(augment_labels)
+        if augment_shape != input_shape:
+            raise ValueError(f"real input shape {input_shape} differs from augmentation shape {augment_shape}")
+        if set(np.unique(augment_labels)) - set(np.unique(labels)):
+            raise ValueError("augmentation data contains labels absent from real training data")
+        synthetic_dataset = H5Dataset(
+            args.augment_data, np.arange(synthetic_samples), low, high
+        )
+        train_dataset = ConcatDataset([real_train_dataset, synthetic_dataset])
+    else:
+        train_dataset = real_train_dataset
+    loaders = {
+        "train": DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True,
+                            num_workers=2, pin_memory=True),
+        "val": DataLoader(H5Dataset(args.data, val, low, high), batch_size=args.batch_size,
+                          shuffle=False, num_workers=2, pin_memory=True),
+        "test": DataLoader(H5Dataset(paths["test"], test, low, high), batch_size=args.batch_size,
+                           shuffle=False, num_workers=2, pin_memory=True),
+    }
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = (SenseFiLeNet() if args.model == "lenet" else SenseFiResNet18()).to(device)
     optimizer, criterion = torch.optim.Adam(model.parameters(), lr=args.lr), nn.CrossEntropyLoss()
@@ -167,7 +191,10 @@ def main():
     result = {"model": args.model, "model_source": "official SenseFi UT-HAR architecture; output 7->20",
               "split": args.split, "test_participant": args.test_participant,
               "train_data": str(args.data), "test_data": str(paths["test"]),
-              "train_samples": len(train), "validation_samples": len(val), "test_samples": len(test),
+              "augmentation_data": str(args.augment_data) if args.augment_data else None,
+              "real_train_samples": len(train), "synthetic_train_samples": synthetic_samples,
+              "train_samples": len(train) + synthetic_samples,
+              "validation_samples": len(val), "test_samples": len(test),
               "normalization": "train-global-minmax", "seed": args.seed, **evaluate(model, loaders["test"], device)}
     with open(args.output_dir / "history.csv", "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=history[0]); writer.writeheader(); writer.writerows(history)
