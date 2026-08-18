@@ -6,7 +6,7 @@
 |---|---|---|---|---|
 | 2026-08-11 | HAR-1 공식 complex CSI 구조 확인; SenseFi in-domain 및 3-fold cross-participant 평가; 환경 메타데이터 점검; SignFi 기반 CSI baseline 구현 및 sanitized-phase 1차 측정 | SenseFi in-domain **94.64%**; cross-participant **14.51±1.69%**; SignFi sanitized-phase in-domain **25.05%** | SenseFi baseline 완료; SignFi 1차 결과는 입력 구조·수렴·phase 처리 확인이 필요한 preliminary baseline | SignFi 학습 history 확인; raw-phase 측정; epoch/normalization ablation 후 최종 SignFi baseline 확정 |
 | 2026-08-13 | HAR-3 Classroom M1 공식 CSI 추출 및 in-domain 측정; external-test 기능 구현; HAR-1 Kitchen M1 ↔ HAR-3 Classroom M1 양방향 cross-environment 평가 | HAR-1→HAR-3 **52.64%**; HAR-3→HAR-1 **58.42%**; 양방향 평균 accuracy **55.53%**, Macro-F1 **49.99%**, Macro-recall **58.54%** | SenseFi CSI 양방향 cross-environment real-only baseline 완료 | 각 방향의 동일 test set에서 CSI 증강 전후 비교 |
-| 2026-08-18 | RF-Diffusion 생성 HAR-1 M1 CSI 구조 검증; SenseFi synthetic train-only 기능 추가; ResNet18 및 LeNet 증강 평가 | ResNet18 in-domain **94.64% → 96.10% (+1.46%p)**, cross-environment **52.64% → 54.06% (+1.42%p)**; LeNet in-domain **90.98% → 71.15% (-19.84%p)** | ResNet18에서는 개선됐지만 LeNet 1:1 증강에서는 성능 하락; 증강 효과의 모델·비율 민감성 확인 필요 | LeNet 낮은 증강 비율 평가 후 cross-environment 증강 전후 평가 |
+| 2026-08-18 | RF-Diffusion 생성 HAR-1 M1 CSI 구조 검증; SenseFi 증강 평가; 512-packet M1 데이터 변환 및 baseline 측정 | ResNet18 250-packet in-domain **94.64% → 96.10% (+1.46%p)**, cross-environment **52.64% → 54.06% (+1.42%p)**; LeNet **90.98% → 71.15% (-19.84%p)**; ResNet18 M1 512-packet real-only **90.72%** | 512-packet 조건의 M1 in-domain 기준값 확보; 250-packet 결과와는 별도 조건으로 관리 | HAR-3 512-packet in-domain 및 M1→HAR-3 cross-environment baseline 측정 |
 
 새로운 작업이나 결과가 나오면 이 표에 날짜별로 한 행씩 추가한다. 실행
 명령어와 상세 결과는 아래 날짜별 작업 일지에 기록한다.
@@ -548,6 +548,32 @@ than asserted from a single ratio and seed.
 
 Status: **LeNet real-only and +100% augmented in-domain evaluations completed;
 lower augmentation ratios and both cross-environment runs pending.**
+
+#### 6. M1 512-packet ResNet18 in-domain baseline — completed
+
+The pre-windowed M1 directory contained 21,143 MAT files with complex
+`feature` shape `(512,242)`. The converter accepted 20,188 samples and skipped
+955 files whose activity/user metadata did not satisfy the 20-class rule.
+
+| Item | Value |
+|---|---:|
+| Converted samples | 20,188 |
+| Real training samples | 14,131 |
+| Real validation samples | 3,028 |
+| Real test samples | 3,029 |
+| Input shape | `(1,512,242)` |
+| Accuracy | **90.72%** |
+| Macro-F1 | **90.84%** |
+| Macro-recall | **90.70%** |
+
+This is the real-only, random-window M1 baseline for the 512-packet condition.
+It must not be treated as a direct replacement for the earlier 94.64%
+250-packet baseline because the window length, sample set, and source-window
+construction differ. The skipped-file label distribution and possible
+`parent_trace` overlap should be audited before final publication reporting.
+
+Status: **M1 512-packet in-domain baseline completed; HAR-3 512-packet
+in-domain and M1 → HAR-3 512-packet external baselines pending.**
 
 ---
 
