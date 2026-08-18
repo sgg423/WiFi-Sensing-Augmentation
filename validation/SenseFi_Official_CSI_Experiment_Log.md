@@ -6,7 +6,7 @@
 |---|---|---|---|---|
 | 2026-08-11 | HAR-1 공식 complex CSI 구조 확인; SenseFi in-domain 및 3-fold cross-participant 평가; 환경 메타데이터 점검; SignFi 기반 CSI baseline 구현 및 sanitized-phase 1차 측정 | SenseFi in-domain **94.64%**; cross-participant **14.51±1.69%**; SignFi sanitized-phase in-domain **25.05%** | SenseFi baseline 완료; SignFi 1차 결과는 입력 구조·수렴·phase 처리 확인이 필요한 preliminary baseline | SignFi 학습 history 확인; raw-phase 측정; epoch/normalization ablation 후 최종 SignFi baseline 확정 |
 | 2026-08-13 | HAR-3 Classroom M1 공식 CSI 추출 및 in-domain 측정; external-test 기능 구현; HAR-1 Kitchen M1 ↔ HAR-3 Classroom M1 양방향 cross-environment 평가 | HAR-1→HAR-3 **52.64%**; HAR-3→HAR-1 **58.42%**; 양방향 평균 accuracy **55.53%**, Macro-F1 **49.99%**, Macro-recall **58.54%** | SenseFi CSI 양방향 cross-environment real-only baseline 완료 | 각 방향의 동일 test set에서 CSI 증강 전후 비교 |
-| 2026-08-18 | RF-Diffusion 생성 HAR-1 M1 CSI 구조 검증; SenseFi synthetic train-only 기능 추가; HAR-1 in-domain 및 HAR-1→HAR-3 cross-environment +100% 증강 평가; HAR-1용 LeNet 입력 폭 수정 및 real-only in-domain baseline 측정 | ResNet18 in-domain **94.64% → 96.10% (+1.46%p)**; cross-environment **52.64% → 54.06% (+1.42%p)**; LeNet real-only in-domain **90.98%** | 고정된 real test에서 ResNet18 CSI 증강 효과 확인; 두 번째 모델의 증강 비교 기준 확보 | LeNet in-domain 증강 및 cross-environment 증강 전후 평가 |
+| 2026-08-18 | RF-Diffusion 생성 HAR-1 M1 CSI 구조 검증; SenseFi synthetic train-only 기능 추가; ResNet18 및 LeNet 증강 평가 | ResNet18 in-domain **94.64% → 96.10% (+1.46%p)**, cross-environment **52.64% → 54.06% (+1.42%p)**; LeNet in-domain **90.98% → 71.15% (-19.84%p)** | ResNet18에서는 개선됐지만 LeNet 1:1 증강에서는 성능 하락; 증강 효과의 모델·비율 민감성 확인 필요 | LeNet 낮은 증강 비율 평가 후 cross-environment 증강 전후 평가 |
 
 새로운 작업이나 결과가 나오면 이 표에 날짜별로 한 행씩 추가한다. 실행
 명령어와 상세 결과는 아래 날짜별 작업 일지에 기록한다.
@@ -531,8 +531,23 @@ and seed are identical to the corresponding ResNet18 real-only experiment. This
 result is the LeNet reference point for the subsequent 1:1 synthetic
 augmentation comparison.
 
-Status: **LeNet real-only in-domain baseline completed; LeNet augmented
-in-domain and both cross-environment runs pending.**
+LeNet 1:1 real/synthetic in-domain result (seed 111):
+
+| Metric | Real only | Real + synthetic | Absolute change |
+|---|---:|---:|---:|
+| Accuracy | 90.98% | **71.15%** | **-19.84%p** |
+| Macro-F1 | 90.84% | **70.45%** | **-20.39%p** |
+| Macro-recall | 90.88% | **70.64%** | **-20.24%p** |
+
+Unlike ResNet18, LeNet was substantially degraded by the 1:1 synthetic mixture.
+The generated CSI is therefore not model-independent under the current mixing
+condition. A plausible interpretation is that the lower-capacity LeNet and its
+adaptive spatial compression are more sensitive to the real/synthetic domain
+gap. This interpretation must be tested with lower augmentation ratios rather
+than asserted from a single ratio and seed.
+
+Status: **LeNet real-only and +100% augmented in-domain evaluations completed;
+lower augmentation ratios and both cross-environment runs pending.**
 
 ---
 
