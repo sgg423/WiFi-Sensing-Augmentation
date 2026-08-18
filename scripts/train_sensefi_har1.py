@@ -41,13 +41,17 @@ class SenseFiLeNet(nn.Module):
             nn.ReLU(True), nn.MaxPool2d(2),
             nn.Conv2d(64, 96, (3, 3), stride=1), nn.ReLU(True), nn.MaxPool2d(2),
         )
+        # Official UT-HAR inputs reach 4x4 here. Official HAR-1 CSI has 242
+        # subcarriers and reaches 4x13, so pool the spatial dimensions while
+        # retaining the published fully-connected layer size.
+        self.pool = nn.AdaptiveAvgPool2d((4, 4))
         self.fc = nn.Sequential(
             nn.Linear(96 * 4 * 4, 128), nn.ReLU(), nn.Linear(128, classes)
         )
 
     def forward(self, x):
-        x = self.encoder(x)
-        return self.fc(x.view(-1, 96 * 4 * 4))
+        x = self.pool(self.encoder(x))
+        return self.fc(torch.flatten(x, 1))
 
 
 class Block(nn.Module):
