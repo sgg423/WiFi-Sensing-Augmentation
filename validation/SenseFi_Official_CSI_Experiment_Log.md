@@ -6,7 +6,7 @@
 |---|---|---|---|---|
 | 2026-08-11 | HAR-1 공식 complex CSI 구조 확인; SenseFi in-domain 및 3-fold cross-participant 평가; 환경 메타데이터 점검; SignFi 기반 CSI baseline 구현 및 sanitized-phase 1차 측정 | SenseFi in-domain **94.64%**; cross-participant **14.51±1.69%**; SignFi sanitized-phase in-domain **25.05%** | SenseFi baseline 완료; SignFi 1차 결과는 입력 구조·수렴·phase 처리 확인이 필요한 preliminary baseline | SignFi 학습 history 확인; raw-phase 측정; epoch/normalization ablation 후 최종 SignFi baseline 확정 |
 | 2026-08-13 | HAR-3 Classroom M1 공식 CSI 추출 및 in-domain 측정; external-test 기능 구현; HAR-1 Kitchen M1 ↔ HAR-3 Classroom M1 양방향 cross-environment 평가 | HAR-1→HAR-3 **52.64%**; HAR-3→HAR-1 **58.42%**; 양방향 평균 accuracy **55.53%**, Macro-F1 **49.99%**, Macro-recall **58.54%** | SenseFi CSI 양방향 cross-environment real-only baseline 완료 | 각 방향의 동일 test set에서 CSI 증강 전후 비교 |
-| 2026-08-18 | RF-Diffusion 생성 HAR-1 M1 CSI 구조 검증; SenseFi synthetic train-only 기능 추가; HAR-1 in-domain +100% 증강 평가 | 생성 MAT 10,292개/18GB; real train 28,817 + synthetic train 28,817; accuracy **94.64% → 96.10% (+1.46%p)** | 고정된 real validation/test에서 CSI 증강 효과 확인; 오분류율 약 **27.2% 감소** | 증강 비율별 평가 및 HAR-1→HAR-3 cross-environment 증강 평가 |
+| 2026-08-18 | RF-Diffusion 생성 HAR-1 M1 CSI 구조 검증; SenseFi synthetic train-only 기능 추가; HAR-1 in-domain 및 HAR-1→HAR-3 cross-environment +100% 증강 평가 | In-domain accuracy **94.64% → 96.10% (+1.46%p)**; cross-environment accuracy **52.64% → 54.06% (+1.42%p)** | 고정된 real test에서 두 조건 모두 CSI 증강 효과 확인; cross-environment Macro-F1 **+3.52%p** | 증강 비율별 반복 평가 및 BFI baseline/증강 평가 |
 
 새로운 작업이나 결과가 나오면 이 표에 날짜별로 한 행씩 추가한다. 실행
 명령어와 상세 결과는 아래 날짜별 작업 일지에 기록한다.
@@ -452,8 +452,57 @@ a positive in-domain augmentation effect under the evaluated 1:1 training
 condition. It does not yet establish cross-environment improvement; that must be
 measured separately using the fixed real HAR-3 external test set.
 
-Status: **generated CSI conversion and HAR-1 in-domain +100% augmentation
-evaluation completed; cross-environment augmentation evaluation pending.**
+#### 4. HAR-1 M1 → HAR-3 M1 cross-environment +100% augmentation — completed
+
+Training and evaluation command:
+
+```bash
+cd /home/leehan/RF-Diffusion
+
+python scripts/train_sensefi_har1.py \
+  --data /home/leehan/datasets/har1_official_csi_242.h5 \
+  --augment-data /mnt/ssd1/leehan/har1_generated_csi_sensefi_242.h5 \
+  --augment-ratio 1.0 \
+  --test-data /home/leehan/datasets/har3_official_csi_m1_242.h5 \
+  --output-dir /home/leehan/results/sensefi_har1_aug100_to_har3 \
+  --model resnet18 \
+  --split external \
+  --epochs 50 \
+  --seed 111
+```
+
+Data composition and result:
+
+| Item | Value |
+|---|---:|
+| HAR-1 real training samples | 37,051 |
+| HAR-1 synthetic training samples | 37,051 |
+| Real : synthetic training ratio | 1 : 1 |
+| Total training samples | 74,102 |
+| HAR-1 real validation samples | 4,117 |
+| HAR-3 real external-test samples | 48,860 |
+| Accuracy | **54.06%** |
+| Macro-F1 | **58.35%** |
+| Macro-recall | **62.13%** |
+
+Comparison against the real-only HAR-1 M1 → HAR-3 M1 baseline:
+
+| Metric | Real only | Real + synthetic | Absolute change |
+|---|---:|---:|---:|
+| Accuracy | 52.64% | **54.06%** | **+1.42%p** |
+| Macro-F1 | 54.83% | **58.35%** | **+3.52%p** |
+| Macro-recall | 59.29% | **62.13%** | **+2.84%p** |
+
+The fixed HAR-3 real test set was excluded from both training and normalization.
+Therefore, the positive changes provide evidence that the generated HAR-1 CSI
+improves not only same-domain recognition but also transfer from the Kitchen
+environment to the Classroom environment. The gains are preliminary single-run
+results with seed 111; multiple seeds or repeated trials are required to report
+statistical significance.
+
+Status: **HAR-1 CSI in-domain and HAR-1 → HAR-3 cross-environment +100%
+augmentation evaluations completed. Both improved over their real-only
+baselines.**
 
 ---
 
