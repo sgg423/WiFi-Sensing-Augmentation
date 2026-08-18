@@ -392,6 +392,12 @@ samples are appended only to the real training split, while validation and test
 loaders remain real-only. Min-max normalization is calculated from the real
 training split and reused for synthetic and test samples.
 
+The `--augment-ratio` option defines the synthetic/real-training sample ratio.
+The default `1.0` selects a class-stratified synthetic subset equal in size to
+the actual real training split (+100%). This prevents the full 41,168-sample
+synthetic pool from unintentionally becoming +143% in the in-domain 70% train
+split or about +111% in the external 90% train split.
+
 This design allows a direct comparison:
 
 ```text

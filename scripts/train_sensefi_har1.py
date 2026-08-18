@@ -120,12 +120,15 @@ def main():
                    help="separate HDF5 used entirely for testing with --split external")
     p.add_argument("--augment-data", type=Path,
                    help="synthetic HDF5 added only to the real training split")
+    p.add_argument("--augment-ratio", type=float, default=1.0,
+                   help="synthetic/real-train sample ratio (default: 1.0, i.e. +100%%)")
     p.add_argument("--test-participant", type=int); p.add_argument("--epochs", type=int, default=50)
     p.add_argument("--batch-size", type=int, default=64); p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--patience", type=int, default=8); p.add_argument("--seed", type=int, default=111)
     args = p.parse_args()
     if args.split == "participant" and args.test_participant is None: p.error("participant split requires --test-participant")
     if args.split == "external" and args.test_data is None: p.error("external split requires --test-data")
+    if args.augment_ratio <= 0: p.error("--augment-ratio must be positive")
     random.seed(args.seed); np.random.seed(args.seed); torch.manual_seed(args.seed)
     with h5py.File(args.data, "r") as f:
         labels, participants = f["y"][:], f["participant"][:]
@@ -148,18 +151,32 @@ def main():
              "test": args.test_data if args.split == "external" else args.data}
     real_train_dataset = H5Dataset(args.data, train, low, high)
     synthetic_samples = 0
+    available_synthetic_samples = 0
     if args.augment_data is not None:
         with h5py.File(args.augment_data, "r") as f:
             augment_shape = tuple(f["x"].shape[1:])
             augment_labels = f["y"][:]
-            synthetic_samples = len(augment_labels)
+            available_synthetic_samples = len(augment_labels)
         if augment_shape != input_shape:
             raise ValueError(f"real input shape {input_shape} differs from augmentation shape {augment_shape}")
         if set(np.unique(augment_labels)) - set(np.unique(labels)):
             raise ValueError("augmentation data contains labels absent from real training data")
-        synthetic_dataset = H5Dataset(
-            args.augment_data, np.arange(synthetic_samples), low, high
-        )
+        requested = int(round(len(train) * args.augment_ratio))
+        if requested > available_synthetic_samples:
+            raise ValueError(
+                f"augmentation ratio {args.augment_ratio} requests {requested} samples, "
+                f"but only {available_synthetic_samples} are available"
+            )
+        all_synthetic = np.arange(available_synthetic_samples)
+        if requested < available_synthetic_samples:
+            synthetic_indices, _ = train_test_split(
+                all_synthetic, train_size=requested, random_state=args.seed,
+                stratify=augment_labels
+            )
+        else:
+            synthetic_indices = all_synthetic
+        synthetic_samples = len(synthetic_indices)
+        synthetic_dataset = H5Dataset(args.augment_data, synthetic_indices, low, high)
         train_dataset = ConcatDataset([real_train_dataset, synthetic_dataset])
     else:
         train_dataset = real_train_dataset
@@ -192,6 +209,8 @@ def main():
               "split": args.split, "test_participant": args.test_participant,
               "train_data": str(args.data), "test_data": str(paths["test"]),
               "augmentation_data": str(args.augment_data) if args.augment_data else None,
+              "augmentation_ratio": args.augment_ratio if args.augment_data else 0.0,
+              "available_synthetic_samples": available_synthetic_samples,
               "real_train_samples": len(train), "synthetic_train_samples": synthetic_samples,
               "train_samples": len(train) + synthetic_samples,
               "validation_samples": len(val), "test_samples": len(test),
