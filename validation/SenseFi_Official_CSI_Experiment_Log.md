@@ -6,7 +6,7 @@
 |---|---|---|---|---|
 | 2026-08-11 | HAR-1 공식 complex CSI 구조 확인; SenseFi in-domain 및 3-fold cross-participant 평가; 환경 메타데이터 점검; SignFi 기반 CSI baseline 구현 및 sanitized-phase 1차 측정 | SenseFi in-domain **94.64%**; cross-participant **14.51±1.69%**; SignFi sanitized-phase in-domain **25.05%** | SenseFi baseline 완료; SignFi 1차 결과는 입력 구조·수렴·phase 처리 확인이 필요한 preliminary baseline | SignFi 학습 history 확인; raw-phase 측정; epoch/normalization ablation 후 최종 SignFi baseline 확정 |
 | 2026-08-13 | HAR-3 Classroom M1 공식 CSI 추출 및 in-domain 측정; external-test 기능 구현; HAR-1 Kitchen M1 ↔ HAR-3 Classroom M1 양방향 cross-environment 평가 | HAR-1→HAR-3 **52.64%**; HAR-3→HAR-1 **58.42%**; 양방향 평균 accuracy **55.53%**, Macro-F1 **49.99%**, Macro-recall **58.54%** | SenseFi CSI 양방향 cross-environment real-only baseline 완료 | 각 방향의 동일 test set에서 CSI 증강 전후 비교 |
-| 2026-08-18 | RF-Diffusion 생성 HAR-1 M1 CSI 구조 검증; SenseFi 증강 평가; 512-packet M1 데이터 변환 및 baseline 측정 | ResNet18 250-packet in-domain **94.64% → 96.10% (+1.46%p)**, cross-environment **52.64% → 54.06% (+1.42%p)**; LeNet **90.98% → 71.15% (-19.84%p)**; ResNet18 M1 512-packet real-only **90.72%** | 512-packet 조건의 M1 in-domain 기준값 확보; 250-packet 결과와는 별도 조건으로 관리 | HAR-3 512-packet in-domain 및 M1→HAR-3 cross-environment baseline 측정 |
+| 2026-08-18 | RF-Diffusion 생성 HAR-1 M1 CSI 구조 검증; SenseFi 증강 평가; 512-packet M1/HAR-3 변환 및 baseline 측정 | ResNet18 250-packet in-domain **94.64% → 96.10% (+1.46%p)**, cross-environment **52.64% → 54.06% (+1.42%p)**; LeNet **90.98% → 71.15% (-19.84%p)**; 512-packet M1 **90.72%**, HAR-3 **98.47%** | 두 환경의 512-packet in-domain 기준값 확보; window 길이보다 환경·데이터 구성의 영향 확인 | M1→HAR-3 512-packet cross-environment baseline 측정 |
 
 새로운 작업이나 결과가 나오면 이 표에 날짜별로 한 행씩 추가한다. 실행
 명령어와 상세 결과는 아래 날짜별 작업 일지에 기록한다.
@@ -574,6 +574,30 @@ construction differ. The skipped-file label distribution and possible
 
 Status: **M1 512-packet in-domain baseline completed; HAR-3 512-packet
 in-domain and M1 → HAR-3 512-packet external baselines pending.**
+
+#### 7. HAR-3 512-packet ResNet18 in-domain baseline — completed
+
+| Item | Value |
+|---|---:|
+| Converted samples | 23,946 |
+| Real training samples | 16,762 |
+| Real validation samples | 3,592 |
+| Real test samples | 3,592 |
+| Input shape | `(1,512,242)` |
+| Accuracy | **98.47%** |
+| Macro-F1 | **98.24%** |
+| Macro-recall | **98.23%** |
+
+The HAR-3 512-packet result is 7.75 percentage points higher than the M1
+512-packet result under the same model and split type. Because HAR-3 reaches a
+high score with the 512-packet input, the lower M1 result cannot be attributed
+to sequence length alone. Environment-specific class separability, sample
+composition, metadata exclusions, and source-trace splitting remain possible
+factors. As with M1, this random-window result may contain windows sharing a
+`parent_trace` across splits.
+
+Status: **M1 and HAR-3 512-packet in-domain baselines completed; M1 → HAR-3
+512-packet external baseline pending.**
 
 ---
 
