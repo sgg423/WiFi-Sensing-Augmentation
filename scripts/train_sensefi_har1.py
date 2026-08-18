@@ -209,7 +209,11 @@ def main():
             stale += 1
             if stale >= args.patience: break
     model.load_state_dict(torch.load(args.output_dir / "best.pt", map_location=device))
-    result = {"model": args.model, "model_source": "official SenseFi UT-HAR architecture; output 7->20",
+    model_source = ("official SenseFi UT-HAR LeNet architecture; output 7->20; "
+                    "adaptive 4x4 pooling for 242-subcarrier input"
+                    if args.model == "lenet" else
+                    "official SenseFi UT-HAR ResNet18 architecture; output 7->20")
+    result = {"model": args.model, "model_source": model_source,
               "split": args.split, "test_participant": args.test_participant,
               "train_data": str(args.data), "test_data": str(paths["test"]),
               "augmentation_data": str(args.augment_data) if args.augment_data else None,
