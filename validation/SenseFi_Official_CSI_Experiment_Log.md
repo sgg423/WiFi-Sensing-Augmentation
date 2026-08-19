@@ -7,7 +7,7 @@
 | 2026-08-11 | HAR-1 공식 complex CSI 구조 확인; SenseFi in-domain 및 3-fold cross-participant 평가; 환경 메타데이터 점검; SignFi 기반 CSI baseline 구현 및 sanitized-phase 1차 측정 | SenseFi in-domain **94.64%**; cross-participant **14.51±1.69%**; SignFi sanitized-phase in-domain **25.05%** | SenseFi baseline 완료; SignFi 1차 결과는 입력 구조·수렴·phase 처리 확인이 필요한 preliminary baseline | SignFi 학습 history 확인; raw-phase 측정; epoch/normalization ablation 후 최종 SignFi baseline 확정 |
 | 2026-08-13 | HAR-3 Classroom M1 공식 CSI 추출 및 in-domain 측정; external-test 기능 구현; HAR-1 Kitchen M1 ↔ HAR-3 Classroom M1 양방향 cross-environment 평가 | HAR-1→HAR-3 **52.64%**; HAR-3→HAR-1 **58.42%**; 양방향 평균 accuracy **55.53%**, Macro-F1 **49.99%**, Macro-recall **58.54%** | SenseFi CSI 양방향 cross-environment real-only baseline 완료 | 각 방향의 동일 test set에서 CSI 증강 전후 비교 |
 | 2026-08-18 | RF-Diffusion 생성 HAR-1 M1 CSI 구조 검증; SenseFi 증강 평가; 512-packet M1/HAR-3 변환 및 baseline 측정 | ResNet18 250-packet in-domain **94.64% → 96.10% (+1.46%p)**, cross-environment **52.64% → 54.06% (+1.42%p)**; LeNet **90.98% → 71.15% (-19.84%p)**; 512-packet M1 **90.72%**, HAR-3 **98.47%** | 두 환경의 512-packet in-domain 기준값 확보; window 길이보다 환경·데이터 구성의 영향 확인 | M1→HAR-3 512-packet cross-environment baseline 측정 |
-| 2026-08-19 | HAR-1 M1 BFI 공식 추출; 60개 PCAP 전체 처리; 10-frame BeamSense 데이터셋 변환 | BFA `(N,10,234,4)` 총 40,675 samples; 20 classes 포함; S는 23 samples, 나머지는 1,639–2,733 | BeamSense baseline 입력 완성; S의 극단적 불균형으로 accuracy 단독 해석 불가 | class-weight 적용 preliminary baseline 및 Macro-F1/recall/confusion 평가; 추가 S 확보 검토 |
+| 2026-08-19 | HAR-1 M1 BFI 공식 추출; 60개 PCAP 전체 처리; 10-frame BeamSense 데이터셋 변환 및 real-only in-domain 측정 | BFA 40,675 samples; BeamSense random-window accuracy **91.55%**, Macro-F1 **91.90%**, Macro-recall **91.81%** | BFI real-only preliminary baseline 확보; S 23개 및 trace-level leakage 가능성 명시 필요 | S test count/recall 확인; participant split 및 BFI 증강 전후 평가 |
 
 새로운 작업이나 결과가 나오면 이 표에 날짜별로 한 행씩 추가한다. 실행
 명령어와 상세 결과는 아래 날짜별 작업 일지에 기록한다.
@@ -699,6 +699,31 @@ for both CSI and BFI.
 
 Status: **HAR-1 M1 BeamSense input dataset completed; preliminary real-only
 baseline ready, final class-balanced protocol pending S-data decision.**
+
+#### 6. BeamSense real-only random-window baseline — completed
+
+| Item | Value |
+|---|---:|
+| Train samples | 28,529 |
+| Validation samples | 6,064 |
+| Test samples | 6,082 |
+| Accuracy | **91.55%** |
+| Macro-F1 | **91.90%** |
+| Macro-recall | **91.81%** |
+| Normalization | none |
+| Class weighting | balanced |
+| Seed | 111 |
+
+This is a BeamSense-style BFA real-only **preliminary in-domain baseline**. The
+70/15/15 split is performed at the 10-frame window level, so windows from the
+same PCAP trace can occur in both train and test sets. Activity S has only 23
+total windows; its test count and normalized confusion row must be reported
+separately before interpreting the macro metrics. The result is suitable as the
+fixed random-window reference for an identically split augmentation experiment,
+but not as evidence of trace- or participant-independent generalization.
+
+Status: **BeamSense random-window baseline completed; S-class audit,
+participant-held-out baselines, and synthetic-train-only support pending.**
 
 ---
 
