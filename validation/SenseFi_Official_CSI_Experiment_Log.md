@@ -722,6 +722,13 @@ separately before interpreting the macro metrics. The result is suitable as the
 fixed random-window reference for an identically split augmentation experiment,
 but not as evidence of trace- or participant-independent generalization.
 
+S-class audit: only **2** of the 6,082 test windows are activity S, and both were
+classified correctly (reported S recall 1.0). This two-sample result is not a
+statistically meaningful 100% recall estimate and may benefit from windows of
+the same source traces appearing in training. It must not be highlighted as
+evidence of S-class generalization. The other test classes contain 227–407
+windows each.
+
 Status: **BeamSense random-window baseline completed; S-class audit,
 participant-held-out baselines, and synthetic-train-only support pending.**
 
