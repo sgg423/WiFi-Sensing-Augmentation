@@ -7,7 +7,7 @@
 | 2026-08-11 | HAR-1 공식 complex CSI 구조 확인; SenseFi in-domain 및 3-fold cross-participant 평가; 환경 메타데이터 점검; SignFi 기반 CSI baseline 구현 및 sanitized-phase 1차 측정 | SenseFi in-domain **94.64%**; cross-participant **14.51±1.69%**; SignFi sanitized-phase in-domain **25.05%** | SenseFi baseline 완료; SignFi 1차 결과는 입력 구조·수렴·phase 처리 확인이 필요한 preliminary baseline | SignFi 학습 history 확인; raw-phase 측정; epoch/normalization ablation 후 최종 SignFi baseline 확정 |
 | 2026-08-13 | HAR-3 Classroom M1 공식 CSI 추출 및 in-domain 측정; external-test 기능 구현; HAR-1 Kitchen M1 ↔ HAR-3 Classroom M1 양방향 cross-environment 평가 | HAR-1→HAR-3 **52.64%**; HAR-3→HAR-1 **58.42%**; 양방향 평균 accuracy **55.53%**, Macro-F1 **49.99%**, Macro-recall **58.54%** | SenseFi CSI 양방향 cross-environment real-only baseline 완료 | 각 방향의 동일 test set에서 CSI 증강 전후 비교 |
 | 2026-08-18 | RF-Diffusion 생성 HAR-1 M1 CSI 구조 검증; SenseFi 증강 평가; 512-packet M1/HAR-3 변환 및 baseline 측정 | ResNet18 250-packet in-domain **94.64% → 96.10% (+1.46%p)**, cross-environment **52.64% → 54.06% (+1.42%p)**; LeNet **90.98% → 71.15% (-19.84%p)**; 512-packet M1 **90.72%**, HAR-3 **98.47%** | 두 환경의 512-packet in-domain 기준값 확보; window 길이보다 환경·데이터 구성의 영향 확인 | M1→HAR-3 512-packet cross-environment baseline 측정 |
-| 2026-08-19 | HAR-1 M1 raw BFI PCAP 확보; macOS tshark 및 공식 Wi-BFI 파이프라인 설치·시험; 단일 trace 전체 추출; M1 60개 PCAP 전체 다운로드 | `A_1_M1_P1`: MU BFI 10,226 frames; 전체 V `(10226,234,3,1)` complex128; HAR-1 M1 PCAP 60개/438MB 확보 | PCAP→BFA→complex V 공식 추출 정상 동작; 전체 일괄 처리 입력 준비 완료 | 60개 trace frame/MAC 사전 검사 후 1000-frame 일괄 추출 |
+| 2026-08-19 | HAR-1 M1 raw BFI PCAP 확보; 공식 Wi-BFI 단일 trace 전체 추출; M1 60개 PCAP 다운로드 및 frame audit | 60개/438MB; 총 1000-frame window 380개; J/P2 660 frames, S/P1 111, S/P2 23, S/P3 101 | 공식 추출은 정상이나 S 클래스가 1000-frame 조건에서 완전히 소실되어 20-class BFI 구성 불가 | 추가 S trace 확보 또는 BFI/RF-Diffusion window 길이 재설계 후 일괄 추출 |
 
 새로운 작업이나 결과가 나오면 이 표에 날짜별로 한 행씩 추가한다. 실행
 명령어와 상세 결과는 아래 날짜별 작업 일지에 기록한다.
@@ -658,6 +658,26 @@ conversion and batch extraction pending.**
 
 Status: **all HAR-1 M1 PCAPNG inputs acquired; per-trace valid-frame/MAC audit
 and resumable batch extraction pending.**
+
+#### 4. HAR-1 M1 per-trace frame audit — 1000-frame class-coverage issue found
+
+- Total non-overlapping 1000-frame windows across 60 traces: 380
+- Traces below 1000 valid MU BFI frames:
+  - `J_1_M1_P2.pcapng`: 660
+  - `S_1_M1_P1.pcapng`: 111
+  - `S_1_M1_P2.pcapng`: 23
+  - `S_1_M1_P3.pcapng`: 101
+
+All three participant traces for activity S are shorter than 1000 frames.
+Consequently, strict non-overlapping 1000-frame conversion would remove the S
+class entirely and produce a 19-class dataset. Such a result is not directly
+comparable with the 20-class CSI experiment. Zero-padding or repeating 23–111
+frames to 1000 may introduce a strong artificial class cue and is not accepted
+as the primary solution.
+
+Status: **batch extraction paused before wasting computation; additional valid
+S traces or a justified shorter BFI generation window is required for a
+20-class experiment.**
 
 ---
 
