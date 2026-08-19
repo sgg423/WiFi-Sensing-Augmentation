@@ -7,7 +7,7 @@
 | 2026-08-11 | HAR-1 공식 complex CSI 구조 확인; SenseFi in-domain 및 3-fold cross-participant 평가; 환경 메타데이터 점검; SignFi 기반 CSI baseline 구현 및 sanitized-phase 1차 측정 | SenseFi in-domain **94.64%**; cross-participant **14.51±1.69%**; SignFi sanitized-phase in-domain **25.05%** | SenseFi baseline 완료; SignFi 1차 결과는 입력 구조·수렴·phase 처리 확인이 필요한 preliminary baseline | SignFi 학습 history 확인; raw-phase 측정; epoch/normalization ablation 후 최종 SignFi baseline 확정 |
 | 2026-08-13 | HAR-3 Classroom M1 공식 CSI 추출 및 in-domain 측정; external-test 기능 구현; HAR-1 Kitchen M1 ↔ HAR-3 Classroom M1 양방향 cross-environment 평가 | HAR-1→HAR-3 **52.64%**; HAR-3→HAR-1 **58.42%**; 양방향 평균 accuracy **55.53%**, Macro-F1 **49.99%**, Macro-recall **58.54%** | SenseFi CSI 양방향 cross-environment real-only baseline 완료 | 각 방향의 동일 test set에서 CSI 증강 전후 비교 |
 | 2026-08-18 | RF-Diffusion 생성 HAR-1 M1 CSI 구조 검증; SenseFi 증강 평가; 512-packet M1/HAR-3 변환 및 baseline 측정 | ResNet18 250-packet in-domain **94.64% → 96.10% (+1.46%p)**, cross-environment **52.64% → 54.06% (+1.42%p)**; LeNet **90.98% → 71.15% (-19.84%p)**; 512-packet M1 **90.72%**, HAR-3 **98.47%** | 두 환경의 512-packet in-domain 기준값 확보; window 길이보다 환경·데이터 구성의 영향 확인 | M1→HAR-3 512-packet cross-environment baseline 측정 |
-| 2026-08-19 | HAR-1 M1 raw BFI PCAP 확보; macOS tshark 및 공식 Wi-BFI 파이프라인 설치·시험 | `A_1_M1_P1`: MU BFI 10,226 frames; MAC `b0:b9:8a:63:55:9c`; V `(200,234,3,1)` complex128, BFA `(200,234,4)` int64 | PCAP→BFA→complex V 공식 추출 정상 동작 및 수치 유효성 확인 | 단일 trace 전체 추출·1000-frame window 생성 후 HAR-1 M1 60개 일괄 처리 |
+| 2026-08-19 | HAR-1 M1 raw BFI PCAP 확보; macOS tshark 및 공식 Wi-BFI 파이프라인 설치·시험; 단일 trace 전체 추출 | `A_1_M1_P1`: MU BFI 10,226 frames; MAC `b0:b9:8a:63:55:9c`; 전체 V `(10226,234,3,1)` complex128, BFA `(10226,234,4)` int64 | PCAP→BFA→complex V 공식 추출 정상 동작; 단일 trace에서 1000-frame window 10개 생성 가능 | 1000-frame window 저장 형식 검증 후 HAR-1 M1 60개 일괄 처리 |
 
 새로운 작업이나 결과가 나오면 이 표에 날짜별로 한 행씩 추가한다. 실행
 명령어와 상세 결과는 아래 날짜별 작업 일지에 기록한다.
@@ -631,6 +631,23 @@ non-overlapping 1000-frame windows with 226 frames left over.
 
 Status: **official BFI extraction validated on one trace; full-trace extraction,
 window conversion, and 60-trace HAR-1 M1 batch processing pending.**
+
+#### 2. Full `A_1_M1_P1` BFI trace extraction — completed
+
+| Output | Full shape | Dtype | Finite |
+|---|---|---|---|
+| Reconstructed V | `(10226,234,3,1)` | `complex128` | Yes |
+| BFA | `(10226,234,4)` | `int64` | Yes |
+
+The trace yields ten non-overlapping 1000-frame windows; the final 226 frames
+are excluded. PyShark emitted a `TSharkCrashException` with return code 255 only
+while cleaning up its child process after extraction. Both output files were
+already saved with the complete expected frame count and valid finite values,
+so this event is recorded as a shutdown warning rather than data-extraction
+failure.
+
+Status: **single-trace full extraction completed; 1000-frame MAT window
+conversion and batch extraction pending.**
 
 ---
 
