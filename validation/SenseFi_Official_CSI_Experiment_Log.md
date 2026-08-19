@@ -7,7 +7,7 @@
 | 2026-08-11 | HAR-1 공식 complex CSI 구조 확인; SenseFi in-domain 및 3-fold cross-participant 평가; 환경 메타데이터 점검; SignFi 기반 CSI baseline 구현 및 sanitized-phase 1차 측정 | SenseFi in-domain **94.64%**; cross-participant **14.51±1.69%**; SignFi sanitized-phase in-domain **25.05%** | SenseFi baseline 완료; SignFi 1차 결과는 입력 구조·수렴·phase 처리 확인이 필요한 preliminary baseline | SignFi 학습 history 확인; raw-phase 측정; epoch/normalization ablation 후 최종 SignFi baseline 확정 |
 | 2026-08-13 | HAR-3 Classroom M1 공식 CSI 추출 및 in-domain 측정; external-test 기능 구현; HAR-1 Kitchen M1 ↔ HAR-3 Classroom M1 양방향 cross-environment 평가 | HAR-1→HAR-3 **52.64%**; HAR-3→HAR-1 **58.42%**; 양방향 평균 accuracy **55.53%**, Macro-F1 **49.99%**, Macro-recall **58.54%** | SenseFi CSI 양방향 cross-environment real-only baseline 완료 | 각 방향의 동일 test set에서 CSI 증강 전후 비교 |
 | 2026-08-18 | RF-Diffusion 생성 HAR-1 M1 CSI 구조 검증; SenseFi 증강 평가; 512-packet M1/HAR-3 변환 및 baseline 측정 | ResNet18 250-packet in-domain **94.64% → 96.10% (+1.46%p)**, cross-environment **52.64% → 54.06% (+1.42%p)**; LeNet **90.98% → 71.15% (-19.84%p)**; 512-packet M1 **90.72%**, HAR-3 **98.47%** | 두 환경의 512-packet in-domain 기준값 확보; window 길이보다 환경·데이터 구성의 영향 확인 | M1→HAR-3 512-packet cross-environment baseline 측정 |
-| 2026-08-19 | HAR-1 M1 raw BFI PCAP 확보; 공식 Wi-BFI 단일 trace 전체 추출; M1 60개 PCAP 다운로드 및 frame audit | 60개/438MB; 총 1000-frame window 380개; J/P2 660 frames, S/P1 111, S/P2 23, S/P3 101 | 공식 추출은 정상이나 S 클래스가 1000-frame 조건에서 완전히 소실되어 20-class BFI 구성 불가 | 추가 S trace 확보 또는 BFI/RF-Diffusion window 길이 재설계 후 일괄 추출 |
+| 2026-08-19 | HAR-1 M1 BFI 공식 추출; 60개 PCAP 전체 처리; 10-frame BeamSense 데이터셋 변환 | BFA `(N,10,234,4)` 총 40,675 samples; 20 classes 포함; S는 23 samples, 나머지는 1,639–2,733 | BeamSense baseline 입력 완성; S의 극단적 불균형으로 accuracy 단독 해석 불가 | class-weight 적용 preliminary baseline 및 Macro-F1/recall/confusion 평가; 추가 S 확보 검토 |
 
 새로운 작업이나 결과가 나오면 이 표에 날짜별로 한 행씩 추가한다. 실행
 명령어와 상세 결과는 아래 날짜별 작업 일지에 기록한다.
@@ -678,6 +678,27 @@ as the primary solution.
 Status: **batch extraction paused before wasting computation; additional valid
 S traces or a justified shorter BFI generation window is required for a
 20-class experiment.**
+
+#### 5. Official BFA to BeamSense 10-frame dataset — completed
+
+- Official Wi-BFI BFA traces processed: 60
+- BeamSense input shape per sample: `(10,234,4)`
+- Total non-overlapping samples: 40,675
+- Activity coverage: A–T, all 20 classes
+- Typical per-class count: 1,639–2,733
+- Activity S count: 23
+
+The 10-frame representation restores formal 20-class coverage, but activity S
+remains severely underrepresented because its three source traces contain only
+111, 23, and 101 valid BFI frames. Balanced class weights can support a
+preliminary baseline, but they do not create independent S observations.
+Accuracy must therefore be reported together with Macro-F1, Macro-recall, and
+the normalized confusion matrix. The limitation must remain explicit until
+additional valid S traces are acquired or a paired 19-class protocol is adopted
+for both CSI and BFI.
+
+Status: **HAR-1 M1 BeamSense input dataset completed; preliminary real-only
+baseline ready, final class-balanced protocol pending S-data decision.**
 
 ---
 
