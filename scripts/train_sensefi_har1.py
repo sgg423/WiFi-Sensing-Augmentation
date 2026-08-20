@@ -133,6 +133,41 @@ def split_source_traces(labels, sources, seed):
     return train, val, test
 
 
+def split_source_train_ratio_from_all(labels, sources, train_ratio, seed):
+    """Select train sources from all data, then reserve 15%/15% for val/test."""
+    labels = np.asarray(labels)
+    sources = np.asarray(sources).astype(str)
+    source_labels = {}
+    for source, label in zip(sources, labels):
+        previous = source_labels.setdefault(source, int(label))
+        if previous != int(label):
+            raise ValueError(f"source trace {source!r} contains multiple activity labels")
+
+    rng = np.random.default_rng(seed)
+    train_sources, val_sources, test_sources = [], [], []
+    for label in sorted(np.unique(labels)):
+        class_sources = np.array(
+            [source for source, source_label in source_labels.items() if source_label == label],
+            dtype=object,
+        )
+        rng.shuffle(class_sources)
+        n_train = max(1, int(round(len(class_sources) * train_ratio)))
+        n_val = max(1, int(round(len(class_sources) * .15)))
+        n_test = max(1, int(round(len(class_sources) * .15)))
+        if n_train + n_val + n_test > len(class_sources):
+            raise ValueError(
+                f"class {label} has too few sources for train={train_ratio:.3f}, val=.15, test=.15"
+            )
+        train_sources.extend(class_sources[:n_train])
+        val_sources.extend(class_sources[n_train:n_train + n_val])
+        test_sources.extend(class_sources[n_train + n_val:n_train + n_val + n_test])
+
+    train = np.flatnonzero(np.isin(sources, train_sources))
+    val = np.flatnonzero(np.isin(sources, val_sources))
+    test = np.flatnonzero(np.isin(sources, test_sources))
+    return train, val, test
+
+
 def select_sources_per_class(indices, labels, sources, count, seed):
     """Keep a fixed number of source files per class from a training fold."""
     rng = np.random.default_rng(seed)
@@ -197,6 +232,8 @@ def main():
                    help="with --split source-trace, retain exactly this many real training sources per class")
     p.add_argument("--train-source-ratio", type=float,
                    help="with --split source-trace, retain this fraction of real training sources in every class")
+    p.add_argument("--train-source-ratio-from-all", type=float,
+                   help="with --split source-trace, select this per-class train fraction before reserving 15%%/15%% val/test")
     p.add_argument("--test-participant", type=int); p.add_argument("--epochs", type=int, default=50)
     p.add_argument("--batch-size", type=int, default=64); p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--patience", type=int, default=8); p.add_argument("--seed", type=int, default=111)
@@ -222,6 +259,15 @@ def main():
             p.error("do not combine --train-source-ratio with --train-sources-per-class")
         if args.real_train_ratio != 1.0:
             p.error("do not combine --train-source-ratio with --real-train-ratio")
+    if args.train_source_ratio_from_all is not None:
+        if args.split != "source-trace":
+            p.error("--train-source-ratio-from-all requires --split source-trace")
+        if not 0 < args.train_source_ratio_from_all < .7:
+            p.error("--train-source-ratio-from-all must be in (0, .7)")
+        if args.train_sources_per_class is not None or args.train_source_ratio is not None:
+            p.error("do not combine --train-source-ratio-from-all with other source limits")
+        if args.real_train_ratio != 1.0:
+            p.error("do not combine --train-source-ratio-from-all with --real-train-ratio")
     random.seed(args.seed); np.random.seed(args.seed); torch.manual_seed(args.seed)
     with h5py.File(args.data, "r") as f:
         labels, participants = f["y"][:], f["participant"][:]
@@ -245,7 +291,12 @@ def main():
             raise ValueError("external test data contains labels absent from training data")
         test = np.arange(len(test_labels))
     elif args.split == "source-trace":
-        train, val, test = split_source_traces(labels, sources, args.seed)
+        if args.train_source_ratio_from_all is not None:
+            train, val, test = split_source_train_ratio_from_all(
+                labels, sources, args.train_source_ratio_from_all, args.seed
+            )
+        else:
+            train, val, test = split_source_traces(labels, sources, args.seed)
     else:
         train, val, test = split_indices(labels, participants, args.split, args.test_participant, args.seed)
     available_real_train_samples = len(train)
@@ -336,6 +387,7 @@ def main():
               "real_train_ratio": args.real_train_ratio,
               "train_sources_per_class": args.train_sources_per_class,
               "train_source_ratio": args.train_source_ratio,
+              "train_source_ratio_from_all": args.train_source_ratio_from_all,
               "available_real_train_samples": available_real_train_samples,
               "available_synthetic_samples": available_synthetic_samples,
               "real_train_samples": len(train), "synthetic_train_samples": synthetic_samples,
@@ -350,6 +402,11 @@ def main():
             test_source_traces=len(np.unique(sources[test])),
             source_trace_overlap=False,
         )
+        for split_name, split_indices_value in (("train", train), ("validation", val), ("test", test)):
+            split_sources = sorted(np.unique(sources[split_indices_value]))
+            (args.output_dir / f"{split_name}_sources.txt").write_text(
+                "\n".join(split_sources) + "\n", encoding="utf-8"
+            )
     with open(args.output_dir / "history.csv", "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=history[0]); writer.writeheader(); writer.writerows(history)
     (args.output_dir / "result.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
