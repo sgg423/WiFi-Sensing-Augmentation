@@ -8,7 +8,7 @@
 | 2026-08-13 | HAR-3 Classroom M1 공식 CSI 추출 및 in-domain 측정; external-test 기능 구현; HAR-1 Kitchen M1 ↔ HAR-3 Classroom M1 양방향 cross-environment 평가 | HAR-1→HAR-3 **52.64%**; HAR-3→HAR-1 **58.42%**; 양방향 평균 accuracy **55.53%**, Macro-F1 **49.99%**, Macro-recall **58.54%** | SenseFi CSI 양방향 cross-environment real-only baseline 완료 | 각 방향의 동일 test set에서 CSI 증강 전후 비교 |
 | 2026-08-18 | RF-Diffusion 생성 HAR-1 M1 CSI 구조 검증; SenseFi 증강 평가; 512-packet M1/HAR-3 변환 및 baseline 측정 | ResNet18 250-packet in-domain **94.64% → 96.10% (+1.46%p)**, cross-environment **52.64% → 54.06% (+1.42%p)**; LeNet **90.98% → 71.15% (-19.84%p)**; 512-packet M1 **90.72%**, HAR-3 **98.47%** | 두 환경의 512-packet in-domain 기준값 확보; window 길이보다 환경·데이터 구성의 영향 확인 | M1→HAR-3 512-packet cross-environment baseline 측정 |
 | 2026-08-19 | HAR-1 M1 BFI 공식 추출; 10-frame BeamSense 데이터셋 및 real-only baseline 측정 | Random-window accuracy **91.55%**; held-out P1 accuracy **10.26%**, Macro-F1 **6.35%**, Macro-recall **8.99%** | In-domain baseline 확보; 단일-M1 zero-shot cross-participant에서 큰 domain gap 확인 | P2/P3 held-out fold 측정 후 3-fold 평균; BFI 증강 전후 평가 |
-| 2026-08-20 | HAR-3 M1 RF-Diffusion 생성 CSI 변환 및 real+synthetic 1:1 in-domain 평가 | Accuracy **97.75% → 98.39% (+0.64%p)**; Macro-F1 **97.37% → 98.12% (+0.76%p)**; Macro-recall **97.37% → 98.12% (+0.76%p)** | 동일한 real test set에서 HAR-3 CSI 증강 효과 확인 | BFI 증강 전후 평가 후 각 modality의 증가 폭 비교 |
+| 2026-08-20 | HAR-3 M1 RF-Diffusion 생성 CSI 변환 및 real+synthetic 1:1 평가; limited-real 10% baseline 측정 | 전체 real: accuracy **97.75% → 98.39% (+0.64%p)**; real 10% baseline: accuracy **89.73%**, Macro-F1 **88.39%**, Macro-recall **88.42%** | 전체 데이터 증강 효과 확인; 포화 영향을 줄인 real 10% 기준값 확보 | 동일 real 10% + synthetic 1:1 평가 후 증가 폭 측정 |
 
 새로운 작업이나 결과가 나오면 이 표에 날짜별로 한 행씩 추가한다. 실행
 명령어와 상세 결과는 아래 날짜별 작업 일지에 기록한다.
@@ -826,6 +826,48 @@ Raw result file:
 `/home/leehan/results/sensefi_har3_aug100_random/result.json`
 
 Status: **HAR-3 CSI in-domain augmentation comparison completed.**
+
+#### 3. HAR-3 limited-real 10% baseline — completed
+
+전체 real train split 중 클래스별 10%만 사용해 데이터 부족 조건의
+real-only baseline을 측정했다. 최초 70/15/15 random-window split을 먼저
+고정한 후 train split만 축소했기 때문에 validation/test 7,329개는 앞선
+HAR-3 전체 데이터 실험과 동일하다.
+
+```bash
+cd /home/leehan/RF-Diffusion
+
+python scripts/train_sensefi_har1.py \
+  --data /home/leehan/datasets/har3_official_csi_m1_242.h5 \
+  --real-train-ratio 0.1 \
+  --output-dir /home/leehan/results/sensefi_har3_real10_random \
+  --model resnet18 \
+  --split random-window \
+  --epochs 50 \
+  --seed 111
+```
+
+| Item | Value |
+|---|---:|
+| Available real train | 34,202 |
+| Real train used | 3,420 (10%) |
+| Validation / test | 7,329 / 7,329 |
+| Accuracy | **89.7257%** |
+| Macro-F1 | **88.3879%** |
+| Macro-recall | **88.4240%** |
+| Normalization | Train-global min-max |
+| Seed | 111 |
+
+전체 real train baseline 97.7487%와 비교하면 accuracy가 8.0229%p 낮아져
+ceiling effect가 완화됐다. 이 값은 증강 효과가 아니라 real data를 10%로
+줄였을 때의 기준 성능이다. 다음 실험에서는 이때 선택된 동일한 real
+3,420개에 synthetic 3,420개만 추가하고 실제 validation/test는 그대로
+유지해야 한다.
+
+Raw result file:
+`/home/leehan/results/sensefi_har3_real10_random/result.json`
+
+Status: **real 10% baseline completed; matching 1:1 augmentation run pending.**
 
 ---
 
