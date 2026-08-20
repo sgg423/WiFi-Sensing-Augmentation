@@ -8,7 +8,7 @@
 | 2026-08-13 | HAR-3 Classroom M1 공식 CSI 추출 및 in-domain 측정; external-test 기능 구현; HAR-1 Kitchen M1 ↔ HAR-3 Classroom M1 양방향 cross-environment 평가 | HAR-1→HAR-3 **52.64%**; HAR-3→HAR-1 **58.42%**; 양방향 평균 accuracy **55.53%**, Macro-F1 **49.99%**, Macro-recall **58.54%** | SenseFi CSI 양방향 cross-environment real-only baseline 완료 | 각 방향의 동일 test set에서 CSI 증강 전후 비교 |
 | 2026-08-18 | RF-Diffusion 생성 HAR-1 M1 CSI 구조 검증; SenseFi 증강 평가; 512-packet M1/HAR-3 변환 및 baseline 측정 | ResNet18 250-packet in-domain **94.64% → 96.10% (+1.46%p)**, cross-environment **52.64% → 54.06% (+1.42%p)**; LeNet **90.98% → 71.15% (-19.84%p)**; 512-packet M1 **90.72%**, HAR-3 **98.47%** | 두 환경의 512-packet in-domain 기준값 확보; window 길이보다 환경·데이터 구성의 영향 확인 | M1→HAR-3 512-packet cross-environment baseline 측정 |
 | 2026-08-19 | HAR-1 M1 BFI 공식 추출; 10-frame BeamSense 데이터셋 및 real-only baseline 측정 | Random-window accuracy **91.55%**; held-out P1 accuracy **10.26%**, Macro-F1 **6.35%**, Macro-recall **8.99%** | In-domain baseline 확보; 단일-M1 zero-shot cross-participant에서 큰 domain gap 확인 | P2/P3 held-out fold 측정 후 3-fold 평균; BFI 증강 전후 평가 |
-| 2026-08-20 | HAR-3 RF-Diffusion 증강 평가; limited-real 및 source-file 제한 실험 | 전체 real **97.75% → 98.39%**; source-file 전체 **97.26%**; 5 source/class **45.74%**; 10 source/class **63.50%** | Source/class를 5→10개로 늘리면 +17.77%p; 독립 source 다양성의 영향 확인 | 20-source baseline 및 동일 source만 사용한 RF-Diffusion 재학습·증강 평가 |
+| 2026-08-20 | HAR-3 RF-Diffusion 증강 평가; limited-real 및 5/10/20 source-file baseline 측정 | 전체 real **97.75% → 98.39%**; 5/10/20 source/class **45.74% / 63.50% / 79.21%** | Source 다양성이 증가할수록 정확도가 일관되게 상승; 20-source를 주 증강 조건 후보로 선정 | 동일 20 source/class만으로 RF-Diffusion 재학습·생성 후 79.21% baseline과 비교 |
 
 새로운 작업이나 결과가 나오면 이 표에 날짜별로 한 행씩 추가한다. 실행
 명령어와 상세 결과는 아래 날짜별 작업 일지에 기록한다.
@@ -1165,6 +1165,57 @@ Raw result file:
 `/home/leehan/results/sensefi_har3_10source/result.json`
 
 Status: **ten-source-file-per-class baseline completed.**
+
+#### 11. HAR-3 twenty-source-file-per-class baseline — completed
+
+Source-file-grouped train fold에서 각 클래스당 source file 20개를 선택하여
+총 1,600개의 real window로 학습했다.
+
+```bash
+cd /home/leehan/RF-Diffusion
+
+python scripts/train_sensefi_har1.py \
+  --data /home/leehan/datasets/har3_official_csi_m1_242.h5 \
+  --output-dir /home/leehan/results/sensefi_har3_20source \
+  --model resnet18 \
+  --split source-trace \
+  --train-sources-per-class 20 \
+  --epochs 50 \
+  --seed 111
+```
+
+| Item | Value |
+|---|---:|
+| Train source files | 400 (20 × 20 classes) |
+| Train / validation / test windows | 1,600 / 7,340 / 7,340 |
+| Validation / test source files | 1,835 / 1,835 |
+| Source overlap | **False** |
+| Accuracy | **79.2098%** |
+| Macro-F1 | **76.8350%** |
+| Macro-recall | **77.4789%** |
+
+10-source-file baseline과 비교하면 accuracy +15.7084%p, Macro-F1
++17.0278%p, Macro-recall +16.7393%p가 상승했다. 5-source-file baseline과
+비교한 accuracy 증가는 +33.4741%p다.
+
+| Train sources per class | Train source files | Train windows | Accuracy |
+|---:|---:|---:|---:|
+| 5 | 100 | 400 | 45.74% |
+| 10 | 200 | 800 | 63.50% |
+| 20 | 400 | 1,600 | 79.21% |
+| All available | 8,545 | 34,180 | 97.26% |
+
+Source 수가 증가할수록 성능이 일관되게 상승한다. 20-source 조건은
+baseline이 포화되지 않았고 RF-Diffusion에도 총 400개의 원본 1,000-frame
+MAT를 제공할 수 있으므로 limited-source 증강의 주 실험 후보로 사용한다.
+증강기는 반드시 SenseFi baseline과 동일하게 선택된 400개 source file만
+사용해 재학습해야 한다.
+
+Raw result file:
+`/home/leehan/results/sensefi_har3_20source/result.json`
+
+Status: **twenty-source-file-per-class baseline completed; matched-source
+RF-Diffusion retraining pending.**
 
 ---
 
