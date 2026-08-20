@@ -8,7 +8,7 @@
 | 2026-08-13 | HAR-3 Classroom M1 공식 CSI 추출 및 in-domain 측정; external-test 기능 구현; HAR-1 Kitchen M1 ↔ HAR-3 Classroom M1 양방향 cross-environment 평가 | HAR-1→HAR-3 **52.64%**; HAR-3→HAR-1 **58.42%**; 양방향 평균 accuracy **55.53%**, Macro-F1 **49.99%**, Macro-recall **58.54%** | SenseFi CSI 양방향 cross-environment real-only baseline 완료 | 각 방향의 동일 test set에서 CSI 증강 전후 비교 |
 | 2026-08-18 | RF-Diffusion 생성 HAR-1 M1 CSI 구조 검증; SenseFi 증강 평가; 512-packet M1/HAR-3 변환 및 baseline 측정 | ResNet18 250-packet in-domain **94.64% → 96.10% (+1.46%p)**, cross-environment **52.64% → 54.06% (+1.42%p)**; LeNet **90.98% → 71.15% (-19.84%p)**; 512-packet M1 **90.72%**, HAR-3 **98.47%** | 두 환경의 512-packet in-domain 기준값 확보; window 길이보다 환경·데이터 구성의 영향 확인 | M1→HAR-3 512-packet cross-environment baseline 측정 |
 | 2026-08-19 | HAR-1 M1 BFI 공식 추출; 10-frame BeamSense 데이터셋 및 real-only baseline 측정 | Random-window accuracy **91.55%**; held-out P1 accuracy **10.26%**, Macro-F1 **6.35%**, Macro-recall **8.99%** | In-domain baseline 확보; 단일-M1 zero-shot cross-participant에서 큰 domain gap 확인 | P2/P3 held-out fold 측정 후 3-fold 평균; BFI 증강 전후 평가 |
-| 2026-08-20 | HAR-3 M1 RF-Diffusion 증강 평가; limited-real 비율 실험; source-file-grouped baseline 측정 | 전체 real **97.75% → 98.39%**; real 10% baseline **89.73%**; source-file-grouped **97.26%** | 동일 1,000-frame MAT의 window overlap 제거 시 -0.49%p; 물리적 session 분리는 아님 | Parent-trace metadata 확보 후 session-held-out 평가; 비율별 RF-Diffusion 재학습 |
+| 2026-08-20 | HAR-3 RF-Diffusion 증강 평가; limited-real 및 source-file 제한 실험 | 전체 real **97.75% → 98.39%**; real 10% **89.73%**; source-file 전체 **97.26%**; 5 source/class **45.74%** | 클래스당 source file을 5개로 제한하면 독립 source-file test 성능이 크게 하락 | 10/20 source baseline 및 동일 source만 사용한 RF-Diffusion 재학습·증강 평가 |
 
 새로운 작업이나 결과가 나오면 이 표에 날짜별로 한 행씩 추가한다. 실행
 명령어와 상세 결과는 아래 날짜별 작업 일지에 기록한다.
@@ -1078,6 +1078,52 @@ Raw result file:
 
 Status: **source-file overlap removed; physical-session grouping requires
 additional parent-trace metadata.**
+
+#### 9. HAR-3 five-source-file-per-class baseline — completed
+
+Source-file-grouped train fold에서 각 클래스당 1,000-frame MAT source file
+5개만 선택했다. 각 source가 네 개의 250-frame window를 제공하므로 전체
+real train은 400개다.
+
+```bash
+cd /home/leehan/RF-Diffusion
+
+python scripts/train_sensefi_har1.py \
+  --data /home/leehan/datasets/har3_official_csi_m1_242.h5 \
+  --output-dir /home/leehan/results/sensefi_har3_5source \
+  --model resnet18 \
+  --split source-trace \
+  --train-sources-per-class 5 \
+  --epochs 50 \
+  --seed 111
+```
+
+| Item | Value |
+|---|---:|
+| Train source files | 100 (5 × 20 classes) |
+| Train / validation / test windows | 400 / 7,340 / 7,340 |
+| Validation / test source files | 1,835 / 1,835 |
+| Source overlap | **False** |
+| Accuracy | **45.7357%** |
+| Macro-F1 | **41.6869%** |
+| Macro-recall | **41.9288%** |
+| Random chance | 5.00% |
+
+이 결과는 chance level보다 높지만 full source-file-grouped baseline
+97.2616%보다 51.5259%p 낮다. 클래스당 train window가 약 20개뿐이므로
+ResNet18이 학습하지 않은 source-file 변화에 일반화하기 어렵다는 것을
+보여준다. 동시에 random-window real 10%의 89.73%와 비교하면 독립 source
+수와 분할 방식이 단순 window 수보다 성능에 큰 영향을 준다는 점을
+확인할 수 있다.
+
+현재 `source`는 물리적 recording session이 아니라 1,000-frame MAT
+source file이므로 이 결과를 real-world 또는 session-held-out 성능으로
+표현하지 않고 **limited-source-file in-domain baseline**으로 보고한다.
+
+Raw result file:
+`/home/leehan/results/sensefi_har3_5source/result.json`
+
+Status: **five-source-file-per-class baseline completed.**
 
 ---
 
