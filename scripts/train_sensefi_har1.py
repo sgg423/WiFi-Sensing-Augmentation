@@ -133,6 +133,22 @@ def split_source_traces(labels, sources, seed):
     return train, val, test
 
 
+def select_sources_per_class(indices, labels, sources, count, seed):
+    """Keep a fixed number of source files per class from a training fold."""
+    rng = np.random.default_rng(seed)
+    selected_sources = []
+    for label in sorted(np.unique(labels[indices])):
+        class_sources = np.unique(sources[indices][labels[indices] == label])
+        rng.shuffle(class_sources)
+        if len(class_sources) < count:
+            raise ValueError(
+                f"requested {count} training sources for class {label}, "
+                f"but only {len(class_sources)} are available"
+            )
+        selected_sources.extend(class_sources[:count])
+    return indices[np.isin(sources[indices], selected_sources)]
+
+
 def minmax(path, indices, chunk=256):
     low, high = np.inf, -np.inf
     with h5py.File(path, "r") as f:
@@ -165,6 +181,8 @@ def main():
                    help="synthetic/real-train sample ratio (default: 1.0, i.e. +100%%)")
     p.add_argument("--real-train-ratio", type=float, default=1.0,
                    help="fraction of the original real training split to use (default: 1.0)")
+    p.add_argument("--train-sources-per-class", type=int,
+                   help="with --split source-trace, retain exactly this many real training sources per class")
     p.add_argument("--test-participant", type=int); p.add_argument("--epochs", type=int, default=50)
     p.add_argument("--batch-size", type=int, default=64); p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--patience", type=int, default=8); p.add_argument("--seed", type=int, default=111)
@@ -174,6 +192,13 @@ def main():
     if args.augment_ratio <= 0: p.error("--augment-ratio must be positive")
     if not 0 < args.real_train_ratio <= 1:
         p.error("--real-train-ratio must be in (0, 1]")
+    if args.train_sources_per_class is not None:
+        if args.split != "source-trace":
+            p.error("--train-sources-per-class requires --split source-trace")
+        if args.train_sources_per_class <= 0:
+            p.error("--train-sources-per-class must be positive")
+        if args.real_train_ratio != 1.0:
+            p.error("do not combine --train-sources-per-class with --real-train-ratio")
     random.seed(args.seed); np.random.seed(args.seed); torch.manual_seed(args.seed)
     with h5py.File(args.data, "r") as f:
         labels, participants = f["y"][:], f["participant"][:]
@@ -201,7 +226,14 @@ def main():
     else:
         train, val, test = split_indices(labels, participants, args.split, args.test_participant, args.seed)
     available_real_train_samples = len(train)
-    if args.real_train_ratio < 1.0:
+    available_real_train_sources = (
+        len(np.unique(sources[train])) if args.split == "source-trace" else None
+    )
+    if args.train_sources_per_class is not None:
+        train = select_sources_per_class(
+            train, labels, sources, args.train_sources_per_class, args.seed
+        )
+    elif args.real_train_ratio < 1.0:
         train, _ = train_test_split(
             train, train_size=args.real_train_ratio, random_state=args.seed,
             stratify=labels[train]
@@ -275,6 +307,7 @@ def main():
               "augmentation_data": str(args.augment_data) if args.augment_data else None,
               "augmentation_ratio": args.augment_ratio if args.augment_data else 0.0,
               "real_train_ratio": args.real_train_ratio,
+              "train_sources_per_class": args.train_sources_per_class,
               "available_real_train_samples": available_real_train_samples,
               "available_synthetic_samples": available_synthetic_samples,
               "real_train_samples": len(train), "synthetic_train_samples": synthetic_samples,
@@ -284,6 +317,7 @@ def main():
     if args.split == "source-trace":
         result.update(
             train_source_traces=len(np.unique(sources[train])),
+            available_train_source_traces=available_real_train_sources,
             validation_source_traces=len(np.unique(sources[val])),
             test_source_traces=len(np.unique(sources[test])),
             source_trace_overlap=False,
