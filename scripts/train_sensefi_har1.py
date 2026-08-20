@@ -126,6 +126,8 @@ def main():
                    help="synthetic HDF5 added only to the real training split")
     p.add_argument("--augment-ratio", type=float, default=1.0,
                    help="synthetic/real-train sample ratio (default: 1.0, i.e. +100%%)")
+    p.add_argument("--real-train-ratio", type=float, default=1.0,
+                   help="fraction of the original real training split to use (default: 1.0)")
     p.add_argument("--test-participant", type=int); p.add_argument("--epochs", type=int, default=50)
     p.add_argument("--batch-size", type=int, default=64); p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--patience", type=int, default=8); p.add_argument("--seed", type=int, default=111)
@@ -133,6 +135,8 @@ def main():
     if args.split == "participant" and args.test_participant is None: p.error("participant split requires --test-participant")
     if args.split == "external" and args.test_data is None: p.error("external split requires --test-data")
     if args.augment_ratio <= 0: p.error("--augment-ratio must be positive")
+    if not 0 < args.real_train_ratio <= 1:
+        p.error("--real-train-ratio must be in (0, 1]")
     random.seed(args.seed); np.random.seed(args.seed); torch.manual_seed(args.seed)
     with h5py.File(args.data, "r") as f:
         labels, participants = f["y"][:], f["participant"][:]
@@ -150,6 +154,12 @@ def main():
         test = np.arange(len(test_labels))
     else:
         train, val, test = split_indices(labels, participants, args.split, args.test_participant, args.seed)
+    available_real_train_samples = len(train)
+    if args.real_train_ratio < 1.0:
+        train, _ = train_test_split(
+            train, train_size=args.real_train_ratio, random_state=args.seed,
+            stratify=labels[train]
+        )
     low, high = minmax(args.data, train)
     paths = {"train": args.data, "val": args.data,
              "test": args.test_data if args.split == "external" else args.data}
@@ -218,6 +228,8 @@ def main():
               "train_data": str(args.data), "test_data": str(paths["test"]),
               "augmentation_data": str(args.augment_data) if args.augment_data else None,
               "augmentation_ratio": args.augment_ratio if args.augment_data else 0.0,
+              "real_train_ratio": args.real_train_ratio,
+              "available_real_train_samples": available_real_train_samples,
               "available_synthetic_samples": available_synthetic_samples,
               "real_train_samples": len(train), "synthetic_train_samples": synthetic_samples,
               "train_samples": len(train) + synthetic_samples,
