@@ -998,6 +998,44 @@ Raw result file:
 
 Status: **synthetic 50% evaluation completed; performance decreased.**
 
+#### 7. HAR-3 limited-real 25% baseline — completed
+
+전체 real train split 중 클래스별 25%를 사용한 baseline을 측정했다.
+
+```bash
+cd /home/leehan/RF-Diffusion
+
+python scripts/train_sensefi_har1.py \
+  --data /home/leehan/datasets/har3_official_csi_m1_242.h5 \
+  --real-train-ratio 0.25 \
+  --output-dir /home/leehan/results/sensefi_har3_real25_random \
+  --model resnet18 \
+  --split random-window \
+  --epochs 50 \
+  --seed 111
+```
+
+| Item | Value |
+|---|---:|
+| Available real train | 34,202 |
+| Real train used | 8,550 (25%) |
+| Validation / test | 7,329 / 7,329 |
+| Accuracy | **95.1289%** |
+| Macro-F1 | **94.3163%** |
+| Macro-recall | **94.3715%** |
+
+25%만 사용해도 클래스당 평균 약 427개 train window가 존재한다. 또한
+`random-window` 분할에서는 같은 source trace에서 파생된 유사 window가
+train과 test에 포함될 수 있으므로 participant, environment, recording
+session 특성이 공유된다. 따라서 95.13%의 높은 값은 현재 in-domain
+프로토콜에서 가능한 결과이며, unseen trace 또는 unseen environment
+일반화를 의미하지 않는다.
+
+Raw result file:
+`/home/leehan/results/sensefi_har3_real25_random/result.json`
+
+Status: **real 25% baseline completed.**
+
 ---
 
 The sections below contain the full commands, result definitions, and reporting
