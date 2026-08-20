@@ -8,7 +8,7 @@
 | 2026-08-13 | HAR-3 Classroom M1 공식 CSI 추출 및 in-domain 측정; external-test 기능 구현; HAR-1 Kitchen M1 ↔ HAR-3 Classroom M1 양방향 cross-environment 평가 | HAR-1→HAR-3 **52.64%**; HAR-3→HAR-1 **58.42%**; 양방향 평균 accuracy **55.53%**, Macro-F1 **49.99%**, Macro-recall **58.54%** | SenseFi CSI 양방향 cross-environment real-only baseline 완료 | 각 방향의 동일 test set에서 CSI 증강 전후 비교 |
 | 2026-08-18 | RF-Diffusion 생성 HAR-1 M1 CSI 구조 검증; SenseFi 증강 평가; 512-packet M1/HAR-3 변환 및 baseline 측정 | ResNet18 250-packet in-domain **94.64% → 96.10% (+1.46%p)**, cross-environment **52.64% → 54.06% (+1.42%p)**; LeNet **90.98% → 71.15% (-19.84%p)**; 512-packet M1 **90.72%**, HAR-3 **98.47%** | 두 환경의 512-packet in-domain 기준값 확보; window 길이보다 환경·데이터 구성의 영향 확인 | M1→HAR-3 512-packet cross-environment baseline 측정 |
 | 2026-08-19 | HAR-1 M1 BFI 공식 추출; 10-frame BeamSense 데이터셋 및 real-only baseline 측정 | Random-window accuracy **91.55%**; held-out P1 accuracy **10.26%**, Macro-F1 **6.35%**, Macro-recall **8.99%** | In-domain baseline 확보; 단일-M1 zero-shot cross-participant에서 큰 domain gap 확인 | P2/P3 held-out fold 측정 후 3-fold 평균; BFI 증강 전후 평가 |
-| 2026-08-20 | HAR-3 M1 RF-Diffusion 생성 CSI 변환 및 real+synthetic 1:1 평가; limited-real 10% baseline 측정 | 전체 real: accuracy **97.75% → 98.39% (+0.64%p)**; real 10% baseline: accuracy **89.73%**, Macro-F1 **88.39%**, Macro-recall **88.42%** | 전체 데이터 증강 효과 확인; 포화 영향을 줄인 real 10% 기준값 확보 | 동일 real 10% + synthetic 1:1 평가 후 증가 폭 측정 |
+| 2026-08-20 | HAR-3 M1 RF-Diffusion 생성 CSI 변환 및 real+synthetic 1:1 평가; limited-real 10% 증강 전후 측정 | 전체 real accuracy **97.75% → 98.39% (+0.64%p)**; real 10% accuracy **89.73% → 86.56% (-3.17%p)** | 전체 데이터에서는 상승했으나 real 10% 조건에서는 생성 데이터가 성능을 저하시킴 | 증강 비율 0.25/0.5 및 생성 데이터 품질·클래스별 혼동 분석 |
 
 새로운 작업이나 결과가 나오면 이 표에 날짜별로 한 행씩 추가한다. 실행
 명령어와 상세 결과는 아래 날짜별 작업 일지에 기록한다.
@@ -867,7 +867,59 @@ ceiling effect가 완화됐다. 이 값은 증강 효과가 아니라 real data�
 Raw result file:
 `/home/leehan/results/sensefi_har3_real10_random/result.json`
 
-Status: **real 10% baseline completed; matching 1:1 augmentation run pending.**
+Status: **real 10% baseline and matching 1:1 augmentation run completed.**
+
+#### 4. HAR-3 limited-real 10% + synthetic 1:1 — completed
+
+앞선 baseline에서 사용한 동일한 real train 3,420개에 synthetic CSI
+3,420개를 추가했다. Seed, validation/test split, normalization 방식 및 모델은
+baseline과 동일하다.
+
+```bash
+cd /home/leehan/RF-Diffusion
+
+python scripts/train_sensefi_har1.py \
+  --data /home/leehan/datasets/har3_official_csi_m1_242.h5 \
+  --real-train-ratio 0.1 \
+  --augment-data /mnt/ssd1/leehan/har3_generated_csi_sensefi_242.h5 \
+  --augment-ratio 1.0 \
+  --output-dir /home/leehan/results/sensefi_har3_real10_aug100_random \
+  --model resnet18 \
+  --split random-window \
+  --epochs 50 \
+  --seed 111
+```
+
+| Data partition | Samples |
+|---|---:|
+| Real train | 3,420 |
+| Synthetic train | 3,420 |
+| Total train | 6,840 |
+| Real validation | 7,329 |
+| Real test | 7,329 |
+
+| Metric | Real 10% only | Real 10% + synthetic 1:1 | Change |
+|---|---:|---:|---:|
+| Accuracy | 89.7257% | **86.5602%** | **-3.1655%p** |
+| Macro-F1 | 88.3879% | **84.9473%** | **-3.4406%p** |
+| Macro-recall | 88.4240% | **84.9460%** | **-3.4780%p** |
+
+Accuracy error rate는 10.2743%에서 13.4398%로 증가했으며, baseline 대비
+오류가 **30.81% 상대 증가**했다. 따라서 현재 생성 CSI를 real 10%와 같은
+수로 추가하는 방식은 제한된 실제 데이터를 보완하지 못했다. 전체 real
+조건의 +0.64%p와 반대되는 결과이므로, RF-Diffusion 증강 효과가 학습 데이터
+규모와 synthetic 비율에 의존한다는 점을 보여준다. 가능한 원인은 생성
+신호의 real-distribution 불일치, 낮은 생성 품질, 그리고 적은 real sample
+상황에서 synthetic 신호가 학습을 과도하게 지배한 것이다.
+
+이 결과를 제외하지 않고 ratio ablation의 기준으로 유지한다. 다음 실험은
+real 3,420개를 고정한 채 `--augment-ratio 0.25`와 `0.5`를 측정하는 것이
+적절하다.
+
+Raw result file:
+`/home/leehan/results/sensefi_har3_real10_aug100_random/result.json`
+
+Status: **real 10% + synthetic 1:1 evaluation completed; performance decreased.**
 
 ---
 
