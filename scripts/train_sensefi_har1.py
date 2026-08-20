@@ -149,6 +149,18 @@ def select_sources_per_class(indices, labels, sources, count, seed):
     return indices[np.isin(sources[indices], selected_sources)]
 
 
+def select_source_ratio_per_class(indices, labels, sources, ratio, seed):
+    """Keep the requested fraction of source files separately for each class."""
+    rng = np.random.default_rng(seed)
+    selected_sources = []
+    for label in sorted(np.unique(labels[indices])):
+        class_sources = np.unique(sources[indices][labels[indices] == label])
+        rng.shuffle(class_sources)
+        count = max(1, int(round(len(class_sources) * ratio)))
+        selected_sources.extend(class_sources[:count])
+    return indices[np.isin(sources[indices], selected_sources)]
+
+
 def minmax(path, indices, chunk=256):
     low, high = np.inf, -np.inf
     with h5py.File(path, "r") as f:
@@ -183,6 +195,8 @@ def main():
                    help="fraction of the original real training split to use (default: 1.0)")
     p.add_argument("--train-sources-per-class", type=int,
                    help="with --split source-trace, retain exactly this many real training sources per class")
+    p.add_argument("--train-source-ratio", type=float,
+                   help="with --split source-trace, retain this fraction of real training sources in every class")
     p.add_argument("--test-participant", type=int); p.add_argument("--epochs", type=int, default=50)
     p.add_argument("--batch-size", type=int, default=64); p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--patience", type=int, default=8); p.add_argument("--seed", type=int, default=111)
@@ -199,6 +213,15 @@ def main():
             p.error("--train-sources-per-class must be positive")
         if args.real_train_ratio != 1.0:
             p.error("do not combine --train-sources-per-class with --real-train-ratio")
+    if args.train_source_ratio is not None:
+        if args.split != "source-trace":
+            p.error("--train-source-ratio requires --split source-trace")
+        if not 0 < args.train_source_ratio <= 1:
+            p.error("--train-source-ratio must be in (0, 1]")
+        if args.train_sources_per_class is not None:
+            p.error("do not combine --train-source-ratio with --train-sources-per-class")
+        if args.real_train_ratio != 1.0:
+            p.error("do not combine --train-source-ratio with --real-train-ratio")
     random.seed(args.seed); np.random.seed(args.seed); torch.manual_seed(args.seed)
     with h5py.File(args.data, "r") as f:
         labels, participants = f["y"][:], f["participant"][:]
@@ -232,6 +255,10 @@ def main():
     if args.train_sources_per_class is not None:
         train = select_sources_per_class(
             train, labels, sources, args.train_sources_per_class, args.seed
+        )
+    elif args.train_source_ratio is not None:
+        train = select_source_ratio_per_class(
+            train, labels, sources, args.train_source_ratio, args.seed
         )
     elif args.real_train_ratio < 1.0:
         train, _ = train_test_split(
@@ -308,6 +335,7 @@ def main():
               "augmentation_ratio": args.augment_ratio if args.augment_data else 0.0,
               "real_train_ratio": args.real_train_ratio,
               "train_sources_per_class": args.train_sources_per_class,
+              "train_source_ratio": args.train_source_ratio,
               "available_real_train_samples": available_real_train_samples,
               "available_synthetic_samples": available_synthetic_samples,
               "real_train_samples": len(train), "synthetic_train_samples": synthetic_samples,
