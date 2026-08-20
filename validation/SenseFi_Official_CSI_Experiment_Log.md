@@ -8,6 +8,7 @@
 | 2026-08-13 | HAR-3 Classroom M1 공식 CSI 추출 및 in-domain 측정; external-test 기능 구현; HAR-1 Kitchen M1 ↔ HAR-3 Classroom M1 양방향 cross-environment 평가 | HAR-1→HAR-3 **52.64%**; HAR-3→HAR-1 **58.42%**; 양방향 평균 accuracy **55.53%**, Macro-F1 **49.99%**, Macro-recall **58.54%** | SenseFi CSI 양방향 cross-environment real-only baseline 완료 | 각 방향의 동일 test set에서 CSI 증강 전후 비교 |
 | 2026-08-18 | RF-Diffusion 생성 HAR-1 M1 CSI 구조 검증; SenseFi 증강 평가; 512-packet M1/HAR-3 변환 및 baseline 측정 | ResNet18 250-packet in-domain **94.64% → 96.10% (+1.46%p)**, cross-environment **52.64% → 54.06% (+1.42%p)**; LeNet **90.98% → 71.15% (-19.84%p)**; 512-packet M1 **90.72%**, HAR-3 **98.47%** | 두 환경의 512-packet in-domain 기준값 확보; window 길이보다 환경·데이터 구성의 영향 확인 | M1→HAR-3 512-packet cross-environment baseline 측정 |
 | 2026-08-19 | HAR-1 M1 BFI 공식 추출; 10-frame BeamSense 데이터셋 및 real-only baseline 측정 | Random-window accuracy **91.55%**; held-out P1 accuracy **10.26%**, Macro-F1 **6.35%**, Macro-recall **8.99%** | In-domain baseline 확보; 단일-M1 zero-shot cross-participant에서 큰 domain gap 확인 | P2/P3 held-out fold 측정 후 3-fold 평균; BFI 증강 전후 평가 |
+| 2026-08-20 | HAR-3 M1 RF-Diffusion 생성 CSI 변환 및 real+synthetic 1:1 in-domain 평가 | Accuracy **97.75% → 98.39% (+0.64%p)**; Macro-F1 **97.37% → 98.12% (+0.76%p)**; Macro-recall **97.37% → 98.12% (+0.76%p)** | 동일한 real test set에서 HAR-3 CSI 증강 효과 확인 | BFI 증강 전후 평가 후 각 modality의 증가 폭 비교 |
 
 새로운 작업이나 결과가 나오면 이 표에 날짜별로 한 행씩 추가한다. 실행
 명령어와 상세 결과는 아래 날짜별 작업 일지에 기록한다.
@@ -750,6 +751,81 @@ random-window result demonstrates strong subject dependence and also shows how
 the random-window protocol can overstate unseen-subject performance. It is not
 a reproduction of BeamSense's adaptation-based or multi-monitor cross-subject
 setting. P2 and P3 held-out folds are required before reporting a summary.
+
+### 2026-08-20
+
+#### 1. HAR-3 RF-Diffusion generated CSI conversion — completed
+
+RF-Diffusion으로 생성한 HAR-3 M1 complex CSI를 SenseFi 입력 형식으로
+변환했다.
+
+```bash
+cd /home/leehan/RF-Diffusion
+
+python scripts/har1_csi_to_sensefi.py \
+  --input-dir /mnt/ssd1/leehan/HAR-3_rf_generated_1000 \
+  --output /mnt/ssd1/leehan/har3_generated_csi_sensefi_242.h5 \
+  --window 250 \
+  --stride 250 \
+  --recursive
+```
+
+| Item | Value |
+|---|---:|
+| Output HDF5 | `/mnt/ssd1/leehan/har3_generated_csi_sensefi_242.h5` |
+| `x` shape | `(48860, 1, 250, 242)` |
+| `x` dtype | `float16` |
+| `y` shape | `(48860,)` |
+| Classes | 0–19 (20 classes) |
+
+#### 2. HAR-3 real + synthetic 1:1 in-domain evaluation — completed
+
+실제 HAR-3 학습 데이터에 RF-Diffusion 생성 데이터를 1:1로 추가했다.
+합성 데이터는 학습에만 사용했고 validation/test에는 실제 CSI만 사용했다.
+따라서 real-only baseline과 augmentation 결과의 test set은 동일하다.
+
+```bash
+cd /home/leehan/RF-Diffusion
+
+python scripts/train_sensefi_har1.py \
+  --data /home/leehan/datasets/har3_official_csi_m1_242.h5 \
+  --augment-data /mnt/ssd1/leehan/har3_generated_csi_sensefi_242.h5 \
+  --augment-ratio 1.0 \
+  --output-dir /home/leehan/results/sensefi_har3_aug100_random \
+  --model resnet18 \
+  --split random-window \
+  --epochs 50 \
+  --seed 111
+```
+
+| Data partition | Samples |
+|---|---:|
+| Real train | 34,202 |
+| Synthetic train | 34,202 |
+| Total train | 68,404 |
+| Real validation | 7,329 |
+| Real test | 7,329 |
+| Available synthetic | 48,860 |
+
+| Metric | Real-only baseline | Real + synthetic (1:1) | Change |
+|---|---:|---:|---:|
+| Accuracy | 97.7487% | **98.3900%** | **+0.6413%p** |
+| Macro-F1 | 97.3656% | **98.1217%** | **+0.7561%p** |
+| Macro-recall | 97.3682% | **98.1234%** | **+0.7551%p** |
+
+Accuracy error rate는 2.2513%에서 1.6100%로 감소했으며, baseline error의
+**28.48% 상대 감소**에 해당한다. 절대 accuracy 증가는 0.64%p이지만,
+baseline이 이미 97.75%로 포화에 가까웠다는 점을 고려하면 오분류의 약
+28.5%를 줄인 결과다. HAR-1에서 확인한 +1.46%p와 함께 두 CSI 환경 모두
+ResNet18에서 RF-Diffusion 증강 후 성능이 상승했다.
+
+이 결과는 HAR-3 random-window in-domain 조건의 증강 효과이며,
+cross-environment 일반화 성능을 의미하지 않는다.
+
+Raw result file:
+`/home/leehan/results/sensefi_har3_aug100_random/result.json`
+
+Status: **HAR-3 CSI in-domain augmentation comparison completed.**
 
 ---
 
