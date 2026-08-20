@@ -8,7 +8,7 @@
 | 2026-08-13 | HAR-3 Classroom M1 공식 CSI 추출 및 in-domain 측정; external-test 기능 구현; HAR-1 Kitchen M1 ↔ HAR-3 Classroom M1 양방향 cross-environment 평가 | HAR-1→HAR-3 **52.64%**; HAR-3→HAR-1 **58.42%**; 양방향 평균 accuracy **55.53%**, Macro-F1 **49.99%**, Macro-recall **58.54%** | SenseFi CSI 양방향 cross-environment real-only baseline 완료 | 각 방향의 동일 test set에서 CSI 증강 전후 비교 |
 | 2026-08-18 | RF-Diffusion 생성 HAR-1 M1 CSI 구조 검증; SenseFi 증강 평가; 512-packet M1/HAR-3 변환 및 baseline 측정 | ResNet18 250-packet in-domain **94.64% → 96.10% (+1.46%p)**, cross-environment **52.64% → 54.06% (+1.42%p)**; LeNet **90.98% → 71.15% (-19.84%p)**; 512-packet M1 **90.72%**, HAR-3 **98.47%** | 두 환경의 512-packet in-domain 기준값 확보; window 길이보다 환경·데이터 구성의 영향 확인 | M1→HAR-3 512-packet cross-environment baseline 측정 |
 | 2026-08-19 | HAR-1 M1 BFI 공식 추출; 10-frame BeamSense 데이터셋 및 real-only baseline 측정 | Random-window accuracy **91.55%**; held-out P1 accuracy **10.26%**, Macro-F1 **6.35%**, Macro-recall **8.99%** | In-domain baseline 확보; 단일-M1 zero-shot cross-participant에서 큰 domain gap 확인 | P2/P3 held-out fold 측정 후 3-fold 평균; BFI 증강 전후 평가 |
-| 2026-08-20 | HAR-3 증강 평가; 5/10/20 source-file baseline 및 기존 full-data generator의 20-source 적용 | 5/10/20 source/class **45.74% / 63.50% / 79.21%**; 20-source + 기존 synthetic **71.25% (-7.96%p)** | 전체 데이터 기반 synthetic은 제한된 20-source 분류 성능을 저하시킴 | 동일 20 source/class만으로 RF-Diffusion 재학습·생성 후 정식 비교 |
+| 2026-08-20 | HAR-3 증강 평가; source-file 제한 및 제스처별 전체 source 10% baseline 측정 | 5/10/20 source/class **45.74% / 63.50% / 79.21%**; 제스처별 source 10% **90.11%**; 20-source + 기존 synthetic **71.25%** | Source 수 증가에 따른 성능 상승과 전체 source 10% 기준값 확보 | 동일 1,223-source manifest의 RF-Diffusion 생성 데이터로 90.11% baseline과 비교 |
 
 새로운 작업이나 결과가 나오면 이 표에 날짜별로 한 행씩 추가한다. 실행
 명령어와 상세 결과는 아래 날짜별 작업 일지에 기록한다.
@@ -1262,6 +1262,60 @@ Raw result file:
 
 Status: **preliminary full-generator transfer completed; matched-source
 generator experiment pending.**
+
+#### 13. Per-gesture 10% source baseline from the full dataset — completed
+
+각 클래스의 전체 HAR-3 source file 중 10%를 train으로 먼저 선택하고,
+별도의 15%/15% source를 validation/test에 배정했다. 나머지 60%는 사용하지
+않았다. 모든 split은 source-file 단위이며 overlap이 없다.
+
+```bash
+cd /home/leehan/RF-Diffusion
+
+python scripts/train_sensefi_har1.py \
+  --data /home/leehan/datasets/har3_official_csi_m1_242.h5 \
+  --output-dir /home/leehan/results/sensefi_har3_gesture10pct_from_all \
+  --model resnet18 \
+  --split source-trace \
+  --train-source-ratio-from-all 0.1 \
+  --epochs 50 \
+  --seed 111
+```
+
+| Item | Value |
+|---|---:|
+| Train source files | 1,223 (per-class 10%) |
+| Train / validation / test windows | 4,892 / 7,340 / 7,340 |
+| Validation / test source files | 1,835 / 1,835 |
+| Source overlap | **False** |
+| Accuracy | **90.1090%** |
+| Macro-F1 | **88.9948%** |
+| Macro-recall | **88.9954%** |
+
+기존 random-window train-window 10% baseline 89.7257%보다 accuracy가
+0.3832%p 높지만, 두 실험은 선택 단위와 test split이 달라 직접적인 성능
+우열로 해석하지 않는다. 이번 결과가 전체 데이터에서 제스처별 source 10%를
+사용하는 RF-Diffusion 실험의 real-only baseline이다.
+
+정식 증강 비교에서는 다음 manifest와 정확히 동일한 1,223개 source를
+RF-Diffusion 학습에 사용해야 한다.
+
+```text
+/home/leehan/results/sensefi_har3_gesture10pct_from_all/train_sources.txt
+```
+
+Validation/test manifests:
+
+```text
+/home/leehan/results/sensefi_har3_gesture10pct_from_all/validation_sources.txt
+/home/leehan/results/sensefi_har3_gesture10pct_from_all/test_sources.txt
+```
+
+Raw result file:
+`/home/leehan/results/sensefi_har3_gesture10pct_from_all/result.json`
+
+Status: **per-gesture full-source 10% baseline completed; exact manifest
+matching with RF-Diffusion training pending.**
 
 ---
 
