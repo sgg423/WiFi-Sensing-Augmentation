@@ -96,6 +96,43 @@ def split_indices(labels, participants, split, test_participant, seed):
     return train, val, test
 
 
+def split_source_traces(labels, sources, seed):
+    """Split whole source traces while retaining every class in each fold."""
+    labels = np.asarray(labels)
+    sources = np.asarray(sources).astype(str)
+    source_labels = {}
+    for source, label in zip(sources, labels):
+        previous = source_labels.setdefault(source, int(label))
+        if previous != int(label):
+            raise ValueError(f"source trace {source!r} contains multiple activity labels")
+
+    rng = np.random.default_rng(seed)
+    train_sources, val_sources, test_sources = [], [], []
+    for label in sorted(np.unique(labels)):
+        class_sources = np.array(
+            [source for source, source_label in source_labels.items() if source_label == label],
+            dtype=object,
+        )
+        rng.shuffle(class_sources)
+        if len(class_sources) < 3:
+            raise ValueError(
+                f"source-trace split requires at least 3 source traces per class; "
+                f"class {label} has {len(class_sources)}"
+            )
+        n_test = max(1, int(round(len(class_sources) * .15)))
+        n_val = max(1, int(round(len(class_sources) * .15)))
+        if n_test + n_val >= len(class_sources):
+            n_test = n_val = 1
+        test_sources.extend(class_sources[:n_test])
+        val_sources.extend(class_sources[n_test:n_test + n_val])
+        train_sources.extend(class_sources[n_test + n_val:])
+
+    train = np.flatnonzero(np.isin(sources, train_sources))
+    val = np.flatnonzero(np.isin(sources, val_sources))
+    test = np.flatnonzero(np.isin(sources, test_sources))
+    return train, val, test
+
+
 def minmax(path, indices, chunk=256):
     low, high = np.inf, -np.inf
     with h5py.File(path, "r") as f:
@@ -119,7 +156,7 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--data", type=Path, required=True); p.add_argument("--output-dir", type=Path, required=True)
     p.add_argument("--model", choices=["lenet", "resnet18"], default="lenet")
-    p.add_argument("--split", choices=["random-window", "participant", "external"], default="random-window")
+    p.add_argument("--split", choices=["random-window", "source-trace", "participant", "external"], default="random-window")
     p.add_argument("--test-data", type=Path,
                    help="separate HDF5 used entirely for testing with --split external")
     p.add_argument("--augment-data", type=Path,
@@ -141,6 +178,13 @@ def main():
     with h5py.File(args.data, "r") as f:
         labels, participants = f["y"][:], f["participant"][:]
         input_shape = tuple(f["x"].shape[1:])
+        if args.split == "source-trace":
+            if "source" not in f:
+                raise ValueError("source-trace split requires a 'source' dataset in the input HDF5")
+            sources = np.array([
+                value.decode("utf-8") if isinstance(value, bytes) else str(value)
+                for value in f["source"][:]
+            ])
     if args.split == "external":
         all_idx = np.arange(len(labels))
         train, val = train_test_split(all_idx, test_size=.1, random_state=args.seed, stratify=labels)
@@ -152,6 +196,8 @@ def main():
         if set(np.unique(test_labels)) - set(np.unique(labels)):
             raise ValueError("external test data contains labels absent from training data")
         test = np.arange(len(test_labels))
+    elif args.split == "source-trace":
+        train, val, test = split_source_traces(labels, sources, args.seed)
     else:
         train, val, test = split_indices(labels, participants, args.split, args.test_participant, args.seed)
     available_real_train_samples = len(train)
@@ -235,6 +281,13 @@ def main():
               "train_samples": len(train) + synthetic_samples,
               "validation_samples": len(val), "test_samples": len(test),
               "normalization": "train-global-minmax", "seed": args.seed, **evaluate(model, loaders["test"], device)}
+    if args.split == "source-trace":
+        result.update(
+            train_source_traces=len(np.unique(sources[train])),
+            validation_source_traces=len(np.unique(sources[val])),
+            test_source_traces=len(np.unique(sources[test])),
+            source_trace_overlap=False,
+        )
     with open(args.output_dir / "history.csv", "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=history[0]); writer.writeheader(); writer.writerows(history)
     (args.output_dir / "result.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
