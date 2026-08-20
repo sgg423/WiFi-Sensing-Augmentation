@@ -8,7 +8,7 @@
 | 2026-08-13 | HAR-3 Classroom M1 공식 CSI 추출 및 in-domain 측정; external-test 기능 구현; HAR-1 Kitchen M1 ↔ HAR-3 Classroom M1 양방향 cross-environment 평가 | HAR-1→HAR-3 **52.64%**; HAR-3→HAR-1 **58.42%**; 양방향 평균 accuracy **55.53%**, Macro-F1 **49.99%**, Macro-recall **58.54%** | SenseFi CSI 양방향 cross-environment real-only baseline 완료 | 각 방향의 동일 test set에서 CSI 증강 전후 비교 |
 | 2026-08-18 | RF-Diffusion 생성 HAR-1 M1 CSI 구조 검증; SenseFi 증강 평가; 512-packet M1/HAR-3 변환 및 baseline 측정 | ResNet18 250-packet in-domain **94.64% → 96.10% (+1.46%p)**, cross-environment **52.64% → 54.06% (+1.42%p)**; LeNet **90.98% → 71.15% (-19.84%p)**; 512-packet M1 **90.72%**, HAR-3 **98.47%** | 두 환경의 512-packet in-domain 기준값 확보; window 길이보다 환경·데이터 구성의 영향 확인 | M1→HAR-3 512-packet cross-environment baseline 측정 |
 | 2026-08-19 | HAR-1 M1 BFI 공식 추출; 10-frame BeamSense 데이터셋 및 real-only baseline 측정 | Random-window accuracy **91.55%**; held-out P1 accuracy **10.26%**, Macro-F1 **6.35%**, Macro-recall **8.99%** | In-domain baseline 확보; 단일-M1 zero-shot cross-participant에서 큰 domain gap 확인 | P2/P3 held-out fold 측정 후 3-fold 평균; BFI 증강 전후 평가 |
-| 2026-08-20 | HAR-3 source-file 제한 및 제스처별 전체 source 10% baseline을 seed 111/42로 측정 | Source 10%: seed 111 **90.11%**, seed 42 **80.71%**; 5/10/20 source/class **45.74% / 63.50% / 79.21%** | Seed에 따라 source 10% accuracy가 9.40%p 변동하여 단일 실행의 불안정성 확인 | RF-Diffusion seed 42 학습 manifest 확인 후 동일 1,223-source augmented 결과와 80.71% 비교 |
+| 2026-08-20 | HAR-3 source-file 제한 및 제스처별 source 10% baseline 측정; RF-Diffusion 실제 manifest와 정렬 | RF-Diffusion의 실제 1,223-source matched baseline **87.08%**; 별도 선택 seed 111/42는 **90.11% / 80.71%** | 같은 비율·개수라도 선택 파일에 따라 성능 변동; 정확한 manifest 정렬 완료 | 동일 manifest 기반 RF-Diffusion synthetic을 추가해 87.08%와 비교 |
 
 새로운 작업이나 결과가 나오면 이 표에 날짜별로 한 행씩 추가한다. 실행
 명령어와 상세 결과는 아래 날짜별 작업 일지에 기록한다.
@@ -1365,6 +1365,67 @@ Raw result file:
 `/home/leehan/results/sensefi_har3_gesture10pct_seed42/result.json`
 
 Status: **seed 42 baseline completed; RF-Diffusion manifest match pending.**
+
+#### 15. RF-Diffusion-manifest-matched 10% source baseline — completed
+
+RF-Diffusion 담당자가 실제 학습에 사용한 symbolic-link 디렉터리에서
+1,223개 MAT 파일명을 추출하고, 그 manifest를 SenseFi train source로
+직접 고정했다.
+
+RF-Diffusion source directory:
+
+```text
+/mnt/ssd1/leehan/HAR-3_rf_windows_1000_10%
+```
+
+Manifest creation:
+
+```bash
+find -L /mnt/ssd1/leehan/HAR-3_rf_windows_1000_10% \
+  -type f -name '*.mat' \
+  -printf '%f\n' | sort \
+  > /tmp/rfdiffusion_seed42_sources.txt
+```
+
+Baseline command:
+
+```bash
+cd /home/leehan/RF-Diffusion
+
+python scripts/train_sensefi_har1.py \
+  --data /home/leehan/datasets/har3_official_csi_m1_242.h5 \
+  --output-dir /home/leehan/results/sensefi_har3_rfdiffusion10pct_manifest \
+  --model resnet18 \
+  --split source-trace \
+  --train-source-manifest /tmp/rfdiffusion_seed42_sources.txt \
+  --epochs 50 \
+  --seed 42
+```
+
+| Item | Value |
+|---|---:|
+| Train source files | 1,223 |
+| Train / validation / test windows | 4,892 / 7,340 / 7,340 |
+| Validation / test source files | 1,835 / 1,835 |
+| Source overlap | **False** |
+| Accuracy | **87.0845%** |
+| Macro-F1 | **85.6679%** |
+| Macro-recall | **85.6106%** |
+
+이 값이 RF-Diffusion의 실제 10% 학습 데이터와 대응하는 정식 real-only
+baseline이다. 기존 seed 42 자동 선택 baseline 80.7084%와 비교해 accuracy가
++6.3760%p 다른 이유는 두 목록의 공통 source가 133개뿐이고 각각 1,090개가
+달랐기 때문이다. 즉 차이의 주원인은 seed 숫자 자체가 아니라 seed를 서로
+다르게 구현한 선택 로직으로 인해 실제 train source가 달라진 것이다.
+
+향후 augmented SenseFi 실행에서도 동일 manifest, seed 42, validation/test
+분할을 유지하고 synthetic 데이터 추가 여부만 변경해야 한다.
+
+Raw result file:
+`/home/leehan/results/sensefi_har3_rfdiffusion10pct_manifest/result.json`
+
+Status: **RF-Diffusion train manifest matched; augmentation comparison baseline
+fixed at 87.0845%.**
 
 ---
 
