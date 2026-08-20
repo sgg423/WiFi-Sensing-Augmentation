@@ -8,7 +8,7 @@
 | 2026-08-13 | HAR-3 Classroom M1 공식 CSI 추출 및 in-domain 측정; external-test 기능 구현; HAR-1 Kitchen M1 ↔ HAR-3 Classroom M1 양방향 cross-environment 평가 | HAR-1→HAR-3 **52.64%**; HAR-3→HAR-1 **58.42%**; 양방향 평균 accuracy **55.53%**, Macro-F1 **49.99%**, Macro-recall **58.54%** | SenseFi CSI 양방향 cross-environment real-only baseline 완료 | 각 방향의 동일 test set에서 CSI 증강 전후 비교 |
 | 2026-08-18 | RF-Diffusion 생성 HAR-1 M1 CSI 구조 검증; SenseFi 증강 평가; 512-packet M1/HAR-3 변환 및 baseline 측정 | ResNet18 250-packet in-domain **94.64% → 96.10% (+1.46%p)**, cross-environment **52.64% → 54.06% (+1.42%p)**; LeNet **90.98% → 71.15% (-19.84%p)**; 512-packet M1 **90.72%**, HAR-3 **98.47%** | 두 환경의 512-packet in-domain 기준값 확보; window 길이보다 환경·데이터 구성의 영향 확인 | M1→HAR-3 512-packet cross-environment baseline 측정 |
 | 2026-08-19 | HAR-1 M1 BFI 공식 추출; 10-frame BeamSense 데이터셋 및 real-only baseline 측정 | Random-window accuracy **91.55%**; held-out P1 accuracy **10.26%**, Macro-F1 **6.35%**, Macro-recall **8.99%** | In-domain baseline 확보; 단일-M1 zero-shot cross-participant에서 큰 domain gap 확인 | P2/P3 held-out fold 측정 후 3-fold 평균; BFI 증강 전후 평가 |
-| 2026-08-20 | HAR-3 source-file 제한 및 제스처별 source 10% baseline 측정; RF-Diffusion 실제 manifest와 정렬 | RF-Diffusion의 실제 1,223-source matched baseline **87.08%**; 별도 선택 seed 111/42는 **90.11% / 80.71%** | 같은 비율·개수라도 선택 파일에 따라 성능 변동; 정확한 manifest 정렬 완료 | 동일 manifest 기반 RF-Diffusion synthetic을 추가해 87.08%와 비교 |
+| 2026-08-20 | HAR-3 source-file 제한 실험 및 RF-Diffusion 실제 10% manifest 기준 baseline 측정 | RF-Diffusion의 실제 1,223-source matched baseline **87.08%** | 증강 입력과 동일한 source 파일을 사용하여 비교 기준 정렬 완료 | 동일 manifest 기반 RF-Diffusion synthetic을 추가해 87.08%와 비교 |
 
 새로운 작업이나 결과가 나오면 이 표에 날짜별로 한 행씩 추가한다. 실행
 명령어와 상세 결과는 아래 날짜별 작업 일지에 기록한다.
@@ -827,178 +827,7 @@ Raw result file:
 
 Status: **HAR-3 CSI in-domain augmentation comparison completed.**
 
-#### 3. HAR-3 limited-real 10% baseline — completed
-
-전체 real train split 중 클래스별 10%만 사용해 데이터 부족 조건의
-real-only baseline을 측정했다. 최초 70/15/15 random-window split을 먼저
-고정한 후 train split만 축소했기 때문에 validation/test 7,329개는 앞선
-HAR-3 전체 데이터 실험과 동일하다.
-
-```bash
-cd /home/leehan/RF-Diffusion
-
-python scripts/train_sensefi_har1.py \
-  --data /home/leehan/datasets/har3_official_csi_m1_242.h5 \
-  --real-train-ratio 0.1 \
-  --output-dir /home/leehan/results/sensefi_har3_real10_random \
-  --model resnet18 \
-  --split random-window \
-  --epochs 50 \
-  --seed 111
-```
-
-| Item | Value |
-|---|---:|
-| Available real train | 34,202 |
-| Real train used | 3,420 (10%) |
-| Validation / test | 7,329 / 7,329 |
-| Accuracy | **89.7257%** |
-| Macro-F1 | **88.3879%** |
-| Macro-recall | **88.4240%** |
-| Normalization | Train-global min-max |
-| Seed | 111 |
-
-전체 real train baseline 97.7487%와 비교하면 accuracy가 8.0229%p 낮아져
-ceiling effect가 완화됐다. 이 값은 증강 효과가 아니라 real data를 10%로
-줄였을 때의 기준 성능이다. 다음 실험에서는 이때 선택된 동일한 real
-3,420개에 synthetic 3,420개만 추가하고 실제 validation/test는 그대로
-유지해야 한다.
-
-Raw result file:
-`/home/leehan/results/sensefi_har3_real10_random/result.json`
-
-Status: **real 10% baseline and matching 1:1 augmentation run completed.**
-
-#### 4. HAR-3 limited-real 10% + synthetic 1:1 — completed
-
-앞선 baseline에서 사용한 동일한 real train 3,420개에 synthetic CSI
-3,420개를 추가했다. Seed, validation/test split, normalization 방식 및 모델은
-baseline과 동일하다.
-
-```bash
-cd /home/leehan/RF-Diffusion
-
-python scripts/train_sensefi_har1.py \
-  --data /home/leehan/datasets/har3_official_csi_m1_242.h5 \
-  --real-train-ratio 0.1 \
-  --augment-data /mnt/ssd1/leehan/har3_generated_csi_sensefi_242.h5 \
-  --augment-ratio 1.0 \
-  --output-dir /home/leehan/results/sensefi_har3_real10_aug100_random \
-  --model resnet18 \
-  --split random-window \
-  --epochs 50 \
-  --seed 111
-```
-
-| Data partition | Samples |
-|---|---:|
-| Real train | 3,420 |
-| Synthetic train | 3,420 |
-| Total train | 6,840 |
-| Real validation | 7,329 |
-| Real test | 7,329 |
-
-| Metric | Real 10% only | Real 10% + synthetic 1:1 | Change |
-|---|---:|---:|---:|
-| Accuracy | 89.7257% | **86.5602%** | **-3.1655%p** |
-| Macro-F1 | 88.3879% | **84.9473%** | **-3.4406%p** |
-| Macro-recall | 88.4240% | **84.9460%** | **-3.4780%p** |
-
-Accuracy error rate는 10.2743%에서 13.4398%로 증가했으며, baseline 대비
-오류가 **30.81% 상대 증가**했다. 따라서 현재 생성 CSI를 real 10%와 같은
-수로 추가하는 방식은 제한된 실제 데이터를 보완하지 못했다. 전체 real
-조건의 +0.64%p와 반대되는 결과이므로, RF-Diffusion 증강 효과가 학습 데이터
-규모와 synthetic 비율에 의존한다는 점을 보여준다. 가능한 원인은 생성
-신호의 real-distribution 불일치, 낮은 생성 품질, 그리고 적은 real sample
-상황에서 synthetic 신호가 학습을 과도하게 지배한 것이다.
-
-이 결과를 제외하지 않고 ratio ablation의 기준으로 유지한다. 다음 실험은
-real 3,420개를 고정한 채 `--augment-ratio 0.25`와 `0.5`를 측정하는 것이
-적절하다.
-
-Raw result file:
-`/home/leehan/results/sensefi_har3_real10_aug100_random/result.json`
-
-Status: **real 10% + synthetic 1:1 evaluation completed; performance decreased.**
-
-#### 5. HAR-3 limited-real 10% + synthetic 25% — completed
-
-Real train 3,420개를 동일하게 유지하고 synthetic CSI를 855개만 추가했다.
-
-```bash
-cd /home/leehan/RF-Diffusion
-
-python scripts/train_sensefi_har1.py \
-  --data /home/leehan/datasets/har3_official_csi_m1_242.h5 \
-  --real-train-ratio 0.1 \
-  --augment-data /mnt/ssd1/leehan/har3_generated_csi_sensefi_242.h5 \
-  --augment-ratio 0.25 \
-  --output-dir /home/leehan/results/sensefi_har3_real10_aug25_random \
-  --model resnet18 \
-  --split random-window \
-  --epochs 50 \
-  --seed 111
-```
-
-| Metric | Real 10% only | Real 10% + synthetic 25% | Change |
-|---|---:|---:|---:|
-| Accuracy | 89.7257% | **89.6985%** | **-0.0273%p** |
-| Macro-F1 | 88.3879% | **88.2041%** | **-0.1837%p** |
-| Macro-recall | 88.4240% | **88.3095%** | **-0.1145%p** |
-
-Accuracy 차이는 -0.03%p로 매우 작아 실질적으로 baseline과 동일한 수준이다.
-Synthetic 비율을 100%에서 25%로 줄이면 -3.17%p의 큰 성능 저하는
-사라지지만, seed 111 단일 실행에서는 증강 이득도 확인되지 않았다. 작은
-차이는 seed 변동 범위일 수 있으므로 반복 실행 전에는 통계적 차이로
-해석하지 않는다.
-
-Raw result file:
-`/home/leehan/results/sensefi_har3_real10_aug25_random/result.json`
-
-Status: **synthetic 25% evaluation completed; no measurable gain at seed 111.**
-
-#### 6. HAR-3 limited-real 10% + synthetic 50% — completed
-
-Real train 3,420개에 synthetic CSI 1,710개를 추가했다.
-
-```bash
-cd /home/leehan/RF-Diffusion
-
-python scripts/train_sensefi_har1.py \
-  --data /home/leehan/datasets/har3_official_csi_m1_242.h5 \
-  --real-train-ratio 0.1 \
-  --augment-data /mnt/ssd1/leehan/har3_generated_csi_sensefi_242.h5 \
-  --augment-ratio 0.5 \
-  --output-dir /home/leehan/results/sensefi_har3_real10_aug50_random \
-  --model resnet18 \
-  --split random-window \
-  --epochs 50 \
-  --seed 111
-```
-
-| Metric | Real 10% only | Real 10% + synthetic 50% | Change |
-|---|---:|---:|---:|
-| Accuracy | 89.7257% | **85.3050%** | **-4.4208%p** |
-| Macro-F1 | 88.3879% | **83.1284%** | **-5.2595%p** |
-| Macro-recall | 88.4240% | **83.3658%** | **-5.0582%p** |
-
-Accuracy error rate는 10.2743%에서 14.6950%로 증가했으며, baseline 대비
-오류가 **43.03% 상대 증가**했다. 이 결과는 synthetic 100%의 -3.17%p보다도
-낮다. 따라서 synthetic 비율과 성능 사이에 단조로운 관계가 없으며, 단일
-seed 학습 변동과 생성 데이터의 분포 불일치가 함께 영향을 줄 가능성이
-있다.
-
-Seed 111 기준 limited-real 실험의 최고 성능은 증강하지 않은 baseline
-89.73%이며, 증강 조건 중에는 25%가 89.70%로 가장 높지만 baseline을
-넘지 못했다. 최소한 baseline과 25% 조건을 여러 seed로 반복하기 전에는
-25%를 최적 증강 비율로 주장할 수 없다.
-
-Raw result file:
-`/home/leehan/results/sensefi_har3_real10_aug50_random/result.json`
-
-Status: **synthetic 50% evaluation completed; performance decreased.**
-
-#### 7. HAR-3 limited-real 25% baseline — completed
+#### 3. HAR-3 limited-real 25% baseline — completed
 
 전체 real train split 중 클래스별 25%를 사용한 baseline을 측정했다.
 
@@ -1036,7 +865,7 @@ Raw result file:
 
 Status: **real 25% baseline completed.**
 
-#### 8. HAR-3 source-file-grouped baseline — completed
+#### 4. HAR-3 source-file-grouped baseline — completed
 
 동일한 HDF5 `source` 값에서 파생된 250-frame window를 하나의 split에만
 배정하여 평가했다.
@@ -1079,7 +908,7 @@ Raw result file:
 Status: **source-file overlap removed; physical-session grouping requires
 additional parent-trace metadata.**
 
-#### 9. HAR-3 five-source-file-per-class baseline — completed
+#### 5. HAR-3 five-source-file-per-class baseline — completed
 
 Source-file-grouped train fold에서 각 클래스당 1,000-frame MAT source file
 5개만 선택했다. 각 source가 네 개의 250-frame window를 제공하므로 전체
@@ -1112,8 +941,7 @@ python scripts/train_sensefi_har1.py \
 이 결과는 chance level보다 높지만 full source-file-grouped baseline
 97.2616%보다 51.5259%p 낮다. 클래스당 train window가 약 20개뿐이므로
 ResNet18이 학습하지 않은 source-file 변화에 일반화하기 어렵다는 것을
-보여준다. 동시에 random-window real 10%의 89.73%와 비교하면 독립 source
-수와 분할 방식이 단순 window 수보다 성능에 큰 영향을 준다는 점을
+보여준다. 독립 source 수가 제한될 때 일반화 성능이 크게 하락함을
 확인할 수 있다.
 
 현재 `source`는 물리적 recording session이 아니라 1,000-frame MAT
@@ -1125,7 +953,7 @@ Raw result file:
 
 Status: **five-source-file-per-class baseline completed.**
 
-#### 10. HAR-3 ten-source-file-per-class baseline — completed
+#### 6. HAR-3 ten-source-file-per-class baseline — completed
 
 Source-file-grouped train fold에서 각 클래스당 source file 10개를 선택하여
 총 800개의 real window로 학습했다.
@@ -1166,7 +994,7 @@ Raw result file:
 
 Status: **ten-source-file-per-class baseline completed.**
 
-#### 11. HAR-3 twenty-source-file-per-class baseline — completed
+#### 7. HAR-3 twenty-source-file-per-class baseline — completed
 
 Source-file-grouped train fold에서 각 클래스당 source file 20개를 선택하여
 총 1,600개의 real window로 학습했다.
@@ -1217,7 +1045,7 @@ Raw result file:
 Status: **twenty-source-file-per-class baseline completed; matched-source
 RF-Diffusion retraining pending.**
 
-#### 12. Twenty-source classifier + full-data-generator synthetic — preliminary
+#### 8. Twenty-source classifier + full-data-generator synthetic — preliminary
 
 20-source-file baseline의 real 1,600개에 기존 전체 HAR-3 기반 RF-Diffusion
 생성 CSI 1,600개를 1:1로 추가했다.
@@ -1263,110 +1091,7 @@ Raw result file:
 Status: **preliminary full-generator transfer completed; matched-source
 generator experiment pending.**
 
-#### 13. Per-gesture 10% source baseline from the full dataset — completed
-
-각 클래스의 전체 HAR-3 source file 중 10%를 train으로 먼저 선택하고,
-별도의 15%/15% source를 validation/test에 배정했다. 나머지 60%는 사용하지
-않았다. 모든 split은 source-file 단위이며 overlap이 없다.
-
-```bash
-cd /home/leehan/RF-Diffusion
-
-python scripts/train_sensefi_har1.py \
-  --data /home/leehan/datasets/har3_official_csi_m1_242.h5 \
-  --output-dir /home/leehan/results/sensefi_har3_gesture10pct_from_all \
-  --model resnet18 \
-  --split source-trace \
-  --train-source-ratio-from-all 0.1 \
-  --epochs 50 \
-  --seed 111
-```
-
-| Item | Value |
-|---|---:|
-| Train source files | 1,223 (per-class 10%) |
-| Train / validation / test windows | 4,892 / 7,340 / 7,340 |
-| Validation / test source files | 1,835 / 1,835 |
-| Source overlap | **False** |
-| Accuracy | **90.1090%** |
-| Macro-F1 | **88.9948%** |
-| Macro-recall | **88.9954%** |
-
-기존 random-window train-window 10% baseline 89.7257%보다 accuracy가
-0.3832%p 높지만, 두 실험은 선택 단위와 test split이 달라 직접적인 성능
-우열로 해석하지 않는다. 이번 결과가 전체 데이터에서 제스처별 source 10%를
-사용하는 RF-Diffusion 실험의 real-only baseline이다.
-
-정식 증강 비교에서는 다음 manifest와 정확히 동일한 1,223개 source를
-RF-Diffusion 학습에 사용해야 한다.
-
-```text
-/home/leehan/results/sensefi_har3_gesture10pct_from_all/train_sources.txt
-```
-
-Validation/test manifests:
-
-```text
-/home/leehan/results/sensefi_har3_gesture10pct_from_all/validation_sources.txt
-/home/leehan/results/sensefi_har3_gesture10pct_from_all/test_sources.txt
-```
-
-Raw result file:
-`/home/leehan/results/sensefi_har3_gesture10pct_from_all/result.json`
-
-Status: **per-gesture full-source 10% baseline completed; exact manifest
-matching with RF-Diffusion training pending.**
-
-#### 14. Per-gesture 10% source baseline with seed 42 — completed
-
-RF-Diffusion 담당자가 사용한 seed 42에 맞춰 전체 source의 제스처별 10%
-baseline을 다시 측정했다.
-
-```bash
-cd /home/leehan/RF-Diffusion
-
-python scripts/train_sensefi_har1.py \
-  --data /home/leehan/datasets/har3_official_csi_m1_242.h5 \
-  --output-dir /home/leehan/results/sensefi_har3_gesture10pct_seed42 \
-  --model resnet18 \
-  --split source-trace \
-  --train-source-ratio-from-all 0.1 \
-  --epochs 50 \
-  --seed 42
-```
-
-| Item | Value |
-|---|---:|
-| Train source files | 1,223 |
-| Train / validation / test windows | 4,892 / 7,340 / 7,340 |
-| Validation / test source files | 1,835 / 1,835 |
-| Source overlap | **False** |
-| Accuracy | **80.7084%** |
-| Macro-F1 | **78.6769%** |
-| Macro-recall | **78.5956%** |
-
-동일한 비율과 표본 수를 사용한 seed 111 결과와 비교하면 accuracy
--9.4005%p, Macro-F1 -10.3178%p, Macro-recall -10.3998%p다. 현재 `seed`는
-source 선택, validation/test 분할, 모델 초기화 및 학습 순서에 동시에 영향을
-주므로 이 차이를 모델 초기화 효과 하나로 해석할 수 없다. 제스처별 source
-10% 조건이 선택 source와 학습 난수에 민감하다는 의미다.
-
-RF-Diffusion이 seed 42로 선택한 source manifest와 아래 목록이 동일할 경우,
-정식 증강 비교 baseline은 80.7084%다.
-
-```text
-/home/leehan/results/sensefi_har3_gesture10pct_seed42/train_sources.txt
-```
-
-파일 목록이 다르면 seed 숫자가 같더라도 동일 데이터 실험이 아니므로,
-RF-Diffusion manifest에 맞춰 baseline을 다시 구성해야 한다.
-
-Raw result file:
-`/home/leehan/results/sensefi_har3_gesture10pct_seed42/result.json`
-
-Status: **seed 42 baseline completed; RF-Diffusion manifest match pending.**
-
-#### 15. RF-Diffusion-manifest-matched 10% source baseline — completed
+#### 9. RF-Diffusion-manifest-matched 10% source baseline — completed
 
 RF-Diffusion 담당자가 실제 학습에 사용한 symbolic-link 디렉터리에서
 1,223개 MAT 파일명을 추출하고, 그 manifest를 SenseFi train source로
@@ -1413,10 +1138,8 @@ python scripts/train_sensefi_har1.py \
 | Macro-recall | **85.6106%** |
 
 이 값이 RF-Diffusion의 실제 10% 학습 데이터와 대응하는 정식 real-only
-baseline이다. 기존 seed 42 자동 선택 baseline 80.7084%와 비교해 accuracy가
-+6.3760%p 다른 이유는 두 목록의 공통 source가 133개뿐이고 각각 1,090개가
-달랐기 때문이다. 즉 차이의 주원인은 seed 숫자 자체가 아니라 seed를 서로
-다르게 구현한 선택 로직으로 인해 실제 train source가 달라진 것이다.
+baseline이다. 이후 증강 실험에서도 이 manifest를 그대로 사용해야 동일한
+실제 데이터 기준에서 증강 효과를 공정하게 비교할 수 있다.
 
 향후 augmented SenseFi 실행에서도 동일 manifest, seed 42, validation/test
 분할을 유지하고 synthetic 데이터 추가 여부만 변경해야 한다.
