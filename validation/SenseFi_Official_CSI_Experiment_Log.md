@@ -8,7 +8,7 @@
 | 2026-08-13 | HAR-3 Classroom M1 공식 CSI 추출 및 in-domain 측정; external-test 기능 구현; HAR-1 Kitchen M1 ↔ HAR-3 Classroom M1 양방향 cross-environment 평가 | HAR-1→HAR-3 **52.64%**; HAR-3→HAR-1 **58.42%**; 양방향 평균 accuracy **55.53%**, Macro-F1 **49.99%**, Macro-recall **58.54%** | SenseFi CSI 양방향 cross-environment real-only baseline 완료 | 각 방향의 동일 test set에서 CSI 증강 전후 비교 |
 | 2026-08-18 | RF-Diffusion 생성 HAR-1 M1 CSI 구조 검증; SenseFi 증강 평가; 512-packet M1/HAR-3 변환 및 baseline 측정 | ResNet18 250-packet in-domain **94.64% → 96.10% (+1.46%p)**, cross-environment **52.64% → 54.06% (+1.42%p)**; LeNet **90.98% → 71.15% (-19.84%p)**; 512-packet M1 **90.72%**, HAR-3 **98.47%** | 두 환경의 512-packet in-domain 기준값 확보; window 길이보다 환경·데이터 구성의 영향 확인 | M1→HAR-3 512-packet cross-environment baseline 측정 |
 | 2026-08-19 | HAR-1 M1 BFI 공식 추출; 10-frame BeamSense 데이터셋 및 real-only baseline 측정 | Random-window accuracy **91.55%**; held-out P1 accuracy **10.26%**, Macro-F1 **6.35%**, Macro-recall **8.99%** | In-domain baseline 확보; 단일-M1 zero-shot cross-participant에서 큰 domain gap 확인 | P2/P3 held-out fold 측정 후 3-fold 평균; BFI 증강 전후 평가 |
-| 2026-08-20 | HAR-3 RF-Diffusion 증강 평가; limited-real 및 5/10/20 source-file baseline 측정 | 전체 real **97.75% → 98.39%**; 5/10/20 source/class **45.74% / 63.50% / 79.21%** | Source 다양성이 증가할수록 정확도가 일관되게 상승; 20-source를 주 증강 조건 후보로 선정 | 동일 20 source/class만으로 RF-Diffusion 재학습·생성 후 79.21% baseline과 비교 |
+| 2026-08-20 | HAR-3 증강 평가; 5/10/20 source-file baseline 및 기존 full-data generator의 20-source 적용 | 5/10/20 source/class **45.74% / 63.50% / 79.21%**; 20-source + 기존 synthetic **71.25% (-7.96%p)** | 전체 데이터 기반 synthetic은 제한된 20-source 분류 성능을 저하시킴 | 동일 20 source/class만으로 RF-Diffusion 재학습·생성 후 정식 비교 |
 
 새로운 작업이나 결과가 나오면 이 표에 날짜별로 한 행씩 추가한다. 실행
 명령어와 상세 결과는 아래 날짜별 작업 일지에 기록한다.
@@ -1216,6 +1216,52 @@ Raw result file:
 
 Status: **twenty-source-file-per-class baseline completed; matched-source
 RF-Diffusion retraining pending.**
+
+#### 12. Twenty-source classifier + full-data-generator synthetic — preliminary
+
+20-source-file baseline의 real 1,600개에 기존 전체 HAR-3 기반 RF-Diffusion
+생성 CSI 1,600개를 1:1로 추가했다.
+
+```bash
+cd /home/leehan/RF-Diffusion
+
+python scripts/train_sensefi_har1.py \
+  --data /home/leehan/datasets/har3_official_csi_m1_242.h5 \
+  --output-dir /home/leehan/results/sensefi_har3_20source_fullgen_aug100 \
+  --model resnet18 \
+  --split source-trace \
+  --train-sources-per-class 20 \
+  --augment-data /mnt/ssd1/leehan/har3_generated_csi_sensefi_242.h5 \
+  --augment-ratio 1.0 \
+  --epochs 50 \
+  --seed 111
+```
+
+| Metric | Real 20-source only | + Full-data-generator synthetic 1:1 | Change |
+|---|---:|---:|---:|
+| Accuracy | 79.2098% | **71.2534%** | **-7.9564%p** |
+| Macro-F1 | 76.8350% | **67.1166%** | **-9.7184%p** |
+| Macro-recall | 77.4789% | **68.7945%** | **-8.6844%p** |
+
+Accuracy error rate는 20.7902%에서 28.7466%로 증가하여 오류가 baseline
+대비 38.27% 상대 증가했다. 기존 synthetic은 전체 HAR-3 데이터로 학습한
+생성기에서 만들어졌으므로, 제한된 20-source real subset의 분포를 보완하는
+matched-source augmentation이 아니다. 1:1로 추가된 synthetic의 분포 차이와
+품질 문제가 적은 real 학습 신호를 방해했을 가능성이 있다.
+
+또한 생성기가 현재 test source를 포함한 전체 데이터로 학습되었을 가능성이
+있으므로, 이 결과는 정식 limited-source augmentation 결과나 논문의 핵심
+비교로 사용하지 않는다. 파이프라인 동작과 synthetic 비율 민감도를 보여주는
+preliminary ablation으로만 유지한다.
+
+정식 실험에서는 SenseFi baseline이 선택한 동일 400개 MAT source file만으로
+RF-Diffusion을 재학습하고, 그 생성 데이터만 추가해야 한다.
+
+Raw result file:
+`/home/leehan/results/sensefi_har3_20source_fullgen_aug100/result.json`
+
+Status: **preliminary full-generator transfer completed; matched-source
+generator experiment pending.**
 
 ---
 
