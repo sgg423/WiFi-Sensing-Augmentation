@@ -168,6 +168,45 @@ def split_source_train_ratio_from_all(labels, sources, train_ratio, seed):
     return train, val, test
 
 
+def split_source_manifest(labels, sources, manifest_path, seed):
+    """Use an explicit train-source manifest and select disjoint 15%/15% val/test."""
+    labels = np.asarray(labels)
+    sources = np.asarray(sources).astype(str)
+    manifest_sources = {
+        Path(line.strip()).name
+        for line in Path(manifest_path).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    }
+    available_sources = set(sources)
+    missing = sorted(manifest_sources - available_sources)
+    if missing:
+        raise ValueError(
+            f"train source manifest contains {len(missing)} names absent from HDF5; "
+            f"first missing: {missing[:5]}"
+        )
+
+    train = np.flatnonzero(np.isin(sources, list(manifest_sources)))
+    rng = np.random.default_rng(seed)
+    val_sources, test_sources = [], []
+    for label in sorted(np.unique(labels)):
+        class_all_sources = np.unique(sources[labels == label])
+        class_remaining = np.array(
+            [source for source in class_all_sources if source not in manifest_sources],
+            dtype=object,
+        )
+        rng.shuffle(class_remaining)
+        n_val = max(1, int(round(len(class_all_sources) * .15)))
+        n_test = max(1, int(round(len(class_all_sources) * .15)))
+        if n_val + n_test > len(class_remaining):
+            raise ValueError(f"class {label} has too few sources remaining after manifest train selection")
+        val_sources.extend(class_remaining[:n_val])
+        test_sources.extend(class_remaining[n_val:n_val + n_test])
+
+    val = np.flatnonzero(np.isin(sources, val_sources))
+    test = np.flatnonzero(np.isin(sources, test_sources))
+    return train, val, test
+
+
 def select_sources_per_class(indices, labels, sources, count, seed):
     """Keep a fixed number of source files per class from a training fold."""
     rng = np.random.default_rng(seed)
@@ -234,6 +273,8 @@ def main():
                    help="with --split source-trace, retain this fraction of real training sources in every class")
     p.add_argument("--train-source-ratio-from-all", type=float,
                    help="with --split source-trace, select this per-class train fraction before reserving 15%%/15%% val/test")
+    p.add_argument("--train-source-manifest", type=Path,
+                   help="with --split source-trace, exact newline-delimited source filenames used for training")
     p.add_argument("--test-participant", type=int); p.add_argument("--epochs", type=int, default=50)
     p.add_argument("--batch-size", type=int, default=64); p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--patience", type=int, default=8); p.add_argument("--seed", type=int, default=111)
@@ -268,6 +309,16 @@ def main():
             p.error("do not combine --train-source-ratio-from-all with other source limits")
         if args.real_train_ratio != 1.0:
             p.error("do not combine --train-source-ratio-from-all with --real-train-ratio")
+    if args.train_source_manifest is not None:
+        if args.split != "source-trace":
+            p.error("--train-source-manifest requires --split source-trace")
+        if any(value is not None for value in (
+            args.train_sources_per_class, args.train_source_ratio,
+            args.train_source_ratio_from_all,
+        )):
+            p.error("do not combine --train-source-manifest with other source limits")
+        if args.real_train_ratio != 1.0:
+            p.error("do not combine --train-source-manifest with --real-train-ratio")
     random.seed(args.seed); np.random.seed(args.seed); torch.manual_seed(args.seed)
     with h5py.File(args.data, "r") as f:
         labels, participants = f["y"][:], f["participant"][:]
@@ -291,7 +342,11 @@ def main():
             raise ValueError("external test data contains labels absent from training data")
         test = np.arange(len(test_labels))
     elif args.split == "source-trace":
-        if args.train_source_ratio_from_all is not None:
+        if args.train_source_manifest is not None:
+            train, val, test = split_source_manifest(
+                labels, sources, args.train_source_manifest, args.seed
+            )
+        elif args.train_source_ratio_from_all is not None:
             train, val, test = split_source_train_ratio_from_all(
                 labels, sources, args.train_source_ratio_from_all, args.seed
             )
@@ -388,6 +443,7 @@ def main():
               "train_sources_per_class": args.train_sources_per_class,
               "train_source_ratio": args.train_source_ratio,
               "train_source_ratio_from_all": args.train_source_ratio_from_all,
+              "train_source_manifest": str(args.train_source_manifest) if args.train_source_manifest else None,
               "available_real_train_samples": available_real_train_samples,
               "available_synthetic_samples": available_synthetic_samples,
               "real_train_samples": len(train), "synthetic_train_samples": synthetic_samples,
