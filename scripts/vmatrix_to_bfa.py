@@ -157,12 +157,32 @@ def convert_mat(args: argparse.Namespace) -> None:
                 "window_start",
             ],
         )
+        metadata = data
+        if args.metadata_dir is not None:
+            relative = path.relative_to(args.input)
+            metadata_path = args.metadata_dir / relative
+            if not metadata_path.exists():
+                raise FileNotFoundError(
+                    f"{path}: paired metadata MAT not found at {metadata_path}"
+                )
+            metadata = loadmat(
+                metadata_path,
+                variable_names=[
+                    "cond", "parent_trace", "source_filename", "window_start"
+                ],
+            )
         feature = np.asarray(data["feature"])
         cond = np.asarray(data["cond"]).reshape(-1).astype(int)
         if feature.shape != (10, 234, 3, 1):
             raise ValueError(f"{path}: unexpected feature shape {feature.shape}")
         if len(cond) < 4 or not 1 <= cond[0] <= 20:
             raise ValueError(f"{path}: invalid cond {cond}")
+        metadata_cond = np.asarray(metadata.get("cond", data["cond"])).reshape(-1).astype(int)
+        if len(metadata_cond) >= 4 and not np.array_equal(cond[:4], metadata_cond[:4]):
+            raise ValueError(
+                f"{path}: generated cond {cond[:4]} differs from paired real "
+                f"cond {metadata_cond[:4]}"
+            )
 
         norms = np.linalg.norm(feature[..., 0], axis=-1)
         errors = np.abs(norms - 1.0)
@@ -175,10 +195,10 @@ def convert_mat(args: argparse.Namespace) -> None:
         monitor[index] = cond[2]
         participant[index] = cond[3]
         source[index] = string_value(
-            data.get("parent_trace"),
-            string_value(data.get("source_filename"), path.stem),
+            metadata.get("parent_trace"),
+            string_value(metadata.get("source_filename"), path.stem),
         )
-        start = np.asarray(data.get("window_start", [[0]])).reshape(-1)
+        start = np.asarray(metadata.get("window_start", [[0]])).reshape(-1)
         window_start[index] = int(start[0]) if len(start) else 0
 
         if (index + 1) % 1000 == 0 or index + 1 == count:
@@ -220,6 +240,15 @@ def parse_args() -> argparse.Namespace:
     conversion = subparsers.add_parser("convert-mat")
     conversion.add_argument("input", type=Path)
     conversion.add_argument("output", type=Path)
+    conversion.add_argument(
+        "--metadata-dir",
+        type=Path,
+        help=(
+            "paired real MAT root with matching relative filenames; use its "
+            "parent_trace/source_filename/window_start when generated MAT files "
+            "did not preserve those fields"
+        ),
+    )
     conversion.set_defaults(func=convert_mat)
     return parser.parse_args()
 
