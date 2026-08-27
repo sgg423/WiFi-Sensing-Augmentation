@@ -18,6 +18,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--alpha-min", type=float, default=0.05)
     parser.add_argument("--alpha-max", type=float, default=0.15)
     parser.add_argument("--seed", type=int, default=111)
+    parser.add_argument(
+        "--train-split-seed",
+        type=int,
+        help="restrict peers to the random-window training fold for this seed",
+    )
     parser.add_argument("--batch-size", type=int, default=256)
     return parser.parse_args()
 
@@ -34,9 +39,14 @@ def main() -> None:
         raise SystemExit(f"Expected x shape [N,10,234,4], got {x.shape}")
 
     rng = np.random.default_rng(args.seed)
-    peer = np.empty(len(y), dtype=np.int64)
+    eligible = np.ones(len(y), dtype=bool)
+    if args.train_split_seed is not None:
+        split_rng = np.random.default_rng(args.train_split_seed)
+        eligible = split_rng.random(len(y)) < 0.70
+
+    peer = np.arange(len(y), dtype=np.int64)
     for label in np.unique(y):
-        members = np.flatnonzero(y == label)
+        members = np.flatnonzero((y == label) & eligible)
         if len(members) == 1:
             peer[members] = members
             continue
@@ -46,6 +56,7 @@ def main() -> None:
         peer[members] = shuffled
 
     alpha = rng.uniform(args.alpha_min, args.alpha_max, len(y)).astype(np.float32)
+    alpha[~eligible] = 0.0
     output = np.empty_like(x, dtype=np.uint16)
     scale = (2.0 * np.pi / PERIOD).reshape(1, 1, 1, 4)
 
@@ -68,6 +79,9 @@ def main() -> None:
         mixup_peer=peer,
         mixup_alpha=alpha,
         augmentation_seed=np.asarray(args.seed),
+        train_split_seed=np.asarray(
+            -1 if args.train_split_seed is None else args.train_split_seed
+        ),
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(args.output, **payload)
@@ -78,6 +92,7 @@ def main() -> None:
         f"max={alpha.max():.4f}"
     )
     print(f"identical samples: {np.all(output == x, axis=(1, 2, 3)).sum()}")
+    print(f"eligible training samples: {eligible.sum()}")
 
 
 if __name__ == "__main__":
