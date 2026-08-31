@@ -67,3 +67,21 @@ samples are realistic. No retraining or modification of dataset files occurs.
 
 Local adapter/checkpoint-selection tests pass; TensorFlow inference requires
 GPU-server execution and is not claimed locally validated.
+
+### Observed PCA audit and next isolation step
+
+raw and angle roundtrip: Accuracy 0.9440973364024992;
+PCA oracle: 0.9738572837882276 (+2.97599 pp). This does not support a
+classifier degradation from PCA on these routed real test windows. The
+oracle uplift is not a deployable sensing improvement.
+
+`audit_timevae_generation_bfa.py` takes the previous audit JSON to reuse its
+exact baseline checkpoint and test indices. Reloads official per-class VAE
+weights and saved PCA without fitting. Adds posterior-mean reconstruction
+(encoder z_mean -> decoder, not sampled posterior). Scores the actual saved
+prior-generated pool and the exact seed111 .1 subset allocated by the existing
+BeamSense trainer. Pool/subset label agreement is a different metric on different
+data than downstream real-test accuracy. Class confusion and predictions saved.
+Poor reconstruction implicates autoencoding as a candidate; good reconstruction
+with poor prior agreement suggests latent prior sampling/distribution mismatch,
+but neither alone proves why augmentation harmed downstream performance.

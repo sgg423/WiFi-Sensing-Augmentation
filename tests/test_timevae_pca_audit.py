@@ -10,9 +10,23 @@ from sklearn.decomposition import PCA
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from audit_timevae_pca_bfa import restore_pca, choose_baseline
 from train_timevae_bfa import encode
+from audit_timevae_generation_bfa import reconstruct
 
 
 class AuditTests(unittest.TestCase):
+    def test_reconstruction_uses_posterior_mean(self):
+        class IdentityVAE:
+            def encoder(self, values, training=False):
+                assert training is False
+                return values, np.zeros_like(values), np.full_like(values,np.nan)
+            def decoder(self, mean, training=False):
+                assert training is False
+                return [mean]
+        x = np.random.default_rng(12).integers(0,128,(5,10,234,4),dtype=np.uint16)
+        pca = PCA(n_components=4,random_state=12).fit(encode(x).reshape(-1,1404))
+        pre = dict(pca=pca,scale=np.ones(4,dtype=np.float32))
+        np.testing.assert_array_equal(reconstruct(x,pre,IdentityVAE()),restore_pca(x,pre))
+
     def test_saved_transform_is_not_refit(self):
         rng = np.random.default_rng(7)
         x = rng.integers(0,128,(8,10,234,4),dtype=np.uint16)
