@@ -40,3 +40,30 @@ Compare against unchanged BeamSense at model/split/augmentation seed111 with
 normalization none and balanced class weights. Use validation for method
 selection; repeatedly inspected test results are exploratory. Independent final
 holdout and multi-seed comparisons are required for confirmatory claims.
+
+## PCA isolation diagnostic
+
+Reported augmentation .1 result: Accuracy 0.8738901677079908,
+macro F1 0.8821466340525091, macro recall 0.8845936866506385;
+classifier/split/augmentation seeds 111. Versus historical fixed baseline
+0.9409733640249918, change -6.7083 percentage points. This alone does not
+identify PCA or generation as the cause.
+
+`scripts/audit_timevae_pca_bfa.py` reloads the saved class PCA, never refits it,
+and evaluates the same test indices through a frozen real-only classifier:
+raw, angle encode/decode, PCA transform/inverse+angle decode. True labels route
+the class PCA, so **PCA score is an oracle diagnostic, not deployable accuracy**.
+All three are measured afresh from the same checkpoint. Historical logged
+accuracy can differ because EarlyStopping's restored weights and the minimum
+val-loss checkpoint do not necessarily coincide.
+
+Automatic checkpoint discovery chooses the latest matching real-only
+random-window baseline with explicit model/split seeds and matching input path;
+prints all candidates and selection. `--baseline-dir` overrides selection.
+Writes per-class confusion, metrics, indices and predictions. If PCA decreases
+accuracy, preprocessing is a plausible contributor, not proof of the entire
+augmentation decline. If PCA is stable, it still does not guarantee prior
+samples are realistic. No retraining or modification of dataset files occurs.
+
+Local adapter/checkpoint-selection tests pass; TensorFlow inference requires
+GPU-server execution and is not claimed locally validated.
