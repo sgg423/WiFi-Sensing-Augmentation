@@ -85,3 +85,17 @@ data than downstream real-test accuracy. Class confusion and predictions saved.
 Poor reconstruction implicates autoencoding as a candidate; good reconstruction
 with poor prior agreement suggests latent prior sampling/distribution mismatch,
 but neither alone proves why augmentation harmed downstream performance.
+
+### Nested ratio rerun
+
+The earlier trainer used separate `Generator.choice(..., size=count)` calls.
+Even with the same seed, changing `size` does not guarantee 10% is contained
+in 25%, or 25% in 50%. Therefore the observed TimeVAE results 10%=0.8738902,
+25%=0.9380138, 50%=0.9077606 confound quantity with sample identity.
+
+Trainer selection is now `seeded-permutation-prefix-v1`: generate one fixed
+permutation conceptually from the same eligible ordered pool and take its prefix.
+Thus, for identical data/split/augmentation seed, 10% is the literal prefix of
+25%, which is the prefix of 50%, which is the prefix of 100%. Each result records
+the selection method and SHA256 of ordered selected indices. New output directories
+are mandatory for interpretation; pre-change ratio runs are exploratory only.
