@@ -3,6 +3,7 @@
 
 import argparse
 import csv
+import hashlib
 import json
 import random
 from pathlib import Path
@@ -245,6 +246,35 @@ def minmax(path, indices, chunk=256):
     return low, high
 
 
+def index_digest(indices):
+    return hashlib.sha256(np.asarray(indices, dtype="<i8").tobytes()).hexdigest()
+
+
+def window_keys(handle):
+    """Canonical source filename + within-source offset + activity label."""
+    for field in ("source", "window_start", "y"):
+        if field not in handle:
+            raise ValueError(f"train-window matching requires HDF5 field {field!r}")
+    arrays = [handle[field][:] for field in ("source", "window_start", "y")]
+    if any(len(values) != len(arrays[0]) for values in arrays):
+        raise ValueError("source/window_start/y lengths differ")
+    keys = []
+    for source, start, label in zip(*arrays):
+        source = source.decode("utf-8") if isinstance(source, bytes) else str(source)
+        keys.append((Path(source).name, int(start), int(label)))
+    if len(set(keys)) != len(keys):
+        raise ValueError("Duplicate source/window_start/label keys; cannot match safely")
+    return keys
+
+
+def matched_synthetic_indices(real_keys, synthetic_keys, train):
+    lookup = {key: index for index, key in enumerate(synthetic_keys)}
+    missing = [real_keys[index] for index in train if real_keys[index] not in lookup]
+    if missing:
+        raise ValueError(f"Missing {len(missing)} generated train windows; examples: {missing[:5]}")
+    return np.asarray([lookup[real_keys[index]] for index in train], dtype=np.int64)
+
+
 def evaluate(model, loader, device):
     model.eval(); true, pred = [], []
     with torch.no_grad():
@@ -278,7 +308,14 @@ def main():
     p.add_argument("--test-participant", type=int); p.add_argument("--epochs", type=int, default=50)
     p.add_argument("--batch-size", type=int, default=64); p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--patience", type=int, default=8); p.add_argument("--seed", type=int, default=111)
+    p.add_argument("--split-seed", type=int, help="split and real-subset seed; default: --seed")
+    p.add_argument("--augment-seed", type=int, help="synthetic-subset seed; default: --seed")
+    p.add_argument("--augment-match", choices=["all", "train-window"], default="all",
+                   help="all reproduces legacy selection; train-window restricts to paired real train windows")
+    p.add_argument("--dry-run", action="store_true", help="validate selection and save indices without training")
     args = p.parse_args()
+    split_seed = args.seed if args.split_seed is None else args.split_seed
+    augment_seed = args.seed if args.augment_seed is None else args.augment_seed
     if args.split == "participant" and args.test_participant is None: p.error("participant split requires --test-participant")
     if args.split == "external" and args.test_data is None: p.error("external split requires --test-data")
     if args.augment_ratio <= 0: p.error("--augment-ratio must be positive")
@@ -332,7 +369,7 @@ def main():
             ])
     if args.split == "external":
         all_idx = np.arange(len(labels))
-        train, val = train_test_split(all_idx, test_size=.1, random_state=args.seed, stratify=labels)
+        train, val = train_test_split(all_idx, test_size=.1, random_state=split_seed, stratify=labels)
         with h5py.File(args.test_data, "r") as f:
             test_labels = f["y"][:]
             test_shape = tuple(f["x"].shape[1:])
@@ -344,39 +381,39 @@ def main():
     elif args.split == "source-trace":
         if args.train_source_manifest is not None:
             train, val, test = split_source_manifest(
-                labels, sources, args.train_source_manifest, args.seed
+                labels, sources, args.train_source_manifest, split_seed
             )
         elif args.train_source_ratio_from_all is not None:
             train, val, test = split_source_train_ratio_from_all(
-                labels, sources, args.train_source_ratio_from_all, args.seed
+                labels, sources, args.train_source_ratio_from_all, split_seed
             )
         else:
-            train, val, test = split_source_traces(labels, sources, args.seed)
+            train, val, test = split_source_traces(labels, sources, split_seed)
     else:
-        train, val, test = split_indices(labels, participants, args.split, args.test_participant, args.seed)
+        train, val, test = split_indices(labels, participants, args.split, args.test_participant, split_seed)
     available_real_train_samples = len(train)
     available_real_train_sources = (
         len(np.unique(sources[train])) if args.split == "source-trace" else None
     )
     if args.train_sources_per_class is not None:
         train = select_sources_per_class(
-            train, labels, sources, args.train_sources_per_class, args.seed
+            train, labels, sources, args.train_sources_per_class, split_seed
         )
     elif args.train_source_ratio is not None:
         train = select_source_ratio_per_class(
-            train, labels, sources, args.train_source_ratio, args.seed
+            train, labels, sources, args.train_source_ratio, split_seed
         )
     elif args.real_train_ratio < 1.0:
         train, _ = train_test_split(
-            train, train_size=args.real_train_ratio, random_state=args.seed,
+            train, train_size=args.real_train_ratio, random_state=split_seed,
             stratify=labels[train]
         )
-    low, high = minmax(args.data, train)
     paths = {"train": args.data, "val": args.data,
              "test": args.test_data if args.split == "external" else args.data}
-    real_train_dataset = H5Dataset(args.data, train, low, high)
     synthetic_samples = 0
     available_synthetic_samples = 0
+    eligible_synthetic_samples = 0
+    synthetic_indices = np.empty(0, dtype=np.int64)
     if args.augment_data is not None:
         with h5py.File(args.augment_data, "r") as f:
             augment_shape = tuple(f["x"].shape[1:])
@@ -386,32 +423,68 @@ def main():
             raise ValueError(f"real input shape {input_shape} differs from augmentation shape {augment_shape}")
         if set(np.unique(augment_labels)) - set(np.unique(labels)):
             raise ValueError("augmentation data contains labels absent from real training data")
+        if args.augment_match == "train-window":
+            with h5py.File(args.data, "r") as real_file, h5py.File(args.augment_data, "r") as synthetic_file:
+                all_synthetic = matched_synthetic_indices(
+                    window_keys(real_file), window_keys(synthetic_file), train
+                )
+        else:
+            print("WARNING: legacy synthetic pool is not restricted by real train-window provenance")
+            all_synthetic = np.arange(available_synthetic_samples)
+        eligible_synthetic_samples = len(all_synthetic)
         requested = int(round(len(train) * args.augment_ratio))
-        if requested > available_synthetic_samples:
+        if requested < 1 or requested > eligible_synthetic_samples:
             raise ValueError(
                 f"augmentation ratio {args.augment_ratio} requests {requested} samples, "
-                f"but only {available_synthetic_samples} are available"
+                f"but {eligible_synthetic_samples} are eligible; need at least one"
             )
-        all_synthetic = np.arange(available_synthetic_samples)
-        if requested < available_synthetic_samples:
+        if requested < eligible_synthetic_samples:
             synthetic_indices, _ = train_test_split(
-                all_synthetic, train_size=requested, random_state=args.seed,
-                stratify=augment_labels
+                all_synthetic, train_size=requested, random_state=augment_seed,
+                stratify=augment_labels[all_synthetic]
             )
         else:
             synthetic_indices = all_synthetic
         synthetic_samples = len(synthetic_indices)
+    if not all(len(indices) for indices in (train, val, test)):
+        raise ValueError("train/validation/test must all be nonempty")
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    selections = dict(train=train, validation=val, test=test, synthetic=synthetic_indices)
+    hashes = {name: index_digest(indices) for name, indices in selections.items()}
+    np.savez_compressed(args.output_dir / "selection_indices.npz", **selections)
+    protocol = {
+        "protocol": "sensefi-fixed-seeds-v1", "model_seed": args.seed,
+        "split_seed": split_seed, "augmentation_seed": augment_seed if args.augment_data else None,
+        "augmentation_matching": args.augment_match if args.augment_data else None,
+        "script_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        "train_data": str(args.data), "test_data": str(paths["test"]),
+        "augmentation_data": str(args.augment_data) if args.augment_data else None,
+        "input_shape": input_shape, "real_train_samples": len(train),
+        "synthetic_train_samples": synthetic_samples,
+        "validation_samples": len(val), "test_samples": len(test),
+        "selection_sha256": hashes,
+    }
+    (args.output_dir / "protocol.json").write_text(json.dumps(protocol, indent=2), encoding="utf-8")
+    print(json.dumps(protocol, indent=2), flush=True)
+    if args.dry_run:
+        return
+    low, high = minmax(args.data, train)
+    real_train_dataset = H5Dataset(args.data, train, low, high)
+    if args.augment_data is not None:
         synthetic_dataset = H5Dataset(args.augment_data, synthetic_indices, low, high)
         train_dataset = ConcatDataset([real_train_dataset, synthetic_dataset])
     else:
         train_dataset = real_train_dataset
     loaders = {
         "train": DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True,
-                            num_workers=2, pin_memory=True),
+                            num_workers=2, pin_memory=True,
+                            generator=torch.Generator().manual_seed(args.seed)),
         "val": DataLoader(H5Dataset(args.data, val, low, high), batch_size=args.batch_size,
-                          shuffle=False, num_workers=2, pin_memory=True),
+                          shuffle=False, num_workers=2, pin_memory=True,
+                          generator=torch.Generator().manual_seed(split_seed)),
         "test": DataLoader(H5Dataset(paths["test"], test, low, high), batch_size=args.batch_size,
-                           shuffle=False, num_workers=2, pin_memory=True),
+                           shuffle=False, num_workers=2, pin_memory=True,
+                           generator=torch.Generator().manual_seed(split_seed)),
     }
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = (SenseFiLeNet() if args.model == "lenet" else SenseFiResNet18()).to(device)
@@ -446,6 +519,12 @@ def main():
               "train_source_manifest": str(args.train_source_manifest) if args.train_source_manifest else None,
               "available_real_train_samples": available_real_train_samples,
               "available_synthetic_samples": available_synthetic_samples,
+              "eligible_synthetic_samples": eligible_synthetic_samples,
+              "split_seed": split_seed,
+              "augmentation_seed": augment_seed if args.augment_data else None,
+              "augmentation_matching": args.augment_match if args.augment_data else None,
+              "selection_sha256": hashes,
+              "protocol": protocol["protocol"], "script_sha256": protocol["script_sha256"],
               "real_train_samples": len(train), "synthetic_train_samples": synthetic_samples,
               "train_samples": len(train) + synthetic_samples,
               "validation_samples": len(val), "test_samples": len(test),
