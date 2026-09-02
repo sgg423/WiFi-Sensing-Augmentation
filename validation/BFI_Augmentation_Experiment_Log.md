@@ -70,3 +70,33 @@ five-seed downstream comparison.
 - Results are exploratory because the same test split has been inspected during
   method development. A final untouched split/environment is required after the
   proposed method is fixed.
+
+## 2026-09-02 — RF-Diffusion native `t` sweep
+
+Four full generated pools were converted from complex V to BFA and evaluated
+with the same frozen BeamSense checkpoint. Each pool contains 40,675 windows.
+The meaning of `t` must be confirmed from the generator configuration; this log
+does not assume whether it denotes a diffusion timestep, starting noise level,
+or another parameter.
+
+| Generated pool | Label agreement | Macro F1 | Macro recall | Dominant predictions |
+|---|---:|---:|---:|---|
+| `M1_w10_native_t25_generated` | 17.6546% | 12.4817% | 17.4166% | D 28.34%, G 22.55%, A 11.86% |
+| `M1_w10_native_t50_generated` | 12.2311% | 7.1820% | 12.4798% | G 48.32%, A 20.96% |
+| `M1_w10_native_t75_generated` | 5.9988% | 2.3389% | 6.7770% | A 51.72%, G 37.29% |
+| `M1_w10_native_t99_generated` | 4.8310% | 1.3899% | 5.7202% | A 76.15%, G 21.13% |
+
+All three classification metrics decrease as `t` increases. Prediction mass
+also progressively collapses toward A/G: their combined fraction is 34.41%,
+69.28%, 89.01%, and 97.28% for t25, t50, t75, and t99 respectively. t25 is the
+best of this sweep but remains far below the frozen classifier's performance on
+real BFA and is highly imbalanced. None of these pools is promoted to the main
+downstream augmentation comparison based on this diagnostic.
+
+This sweep establishes an empirical association, not a mechanism. Required
+generator-side checks are: exact definition and application of `t`; whether
+conditioning strength changes with `t`; identical seeds/conditions/checkpoints
+across the sweep; reverse-process completion; complex-V normalization and
+postprocessing; and metadata/label alignment. Generated-label agreement is not
+itself downstream sensing accuracy, and the frozen classifier is not an
+independent physical-fidelity metric.
