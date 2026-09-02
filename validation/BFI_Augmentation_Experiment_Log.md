@@ -100,3 +100,30 @@ across the sweep; reverse-process completion; complex-V normalization and
 postprocessing; and metadata/label alignment. Generated-label agreement is not
 itself downstream sensing accuracy, and the frozen classifier is not an
 independent physical-fidelity metric.
+
+### TimeVAE-BFA 1:1 paired multi-seed comparison
+
+Class-wise TimeVAE generated 28,529 BFA windows from the train-only split
+(generator seed 42, split seed 111). BeamSense was trained with the real 28,529
+and all generated 28,529 windows. The generated pool and its ordered index hash
+were identical for every model seed (`03eae5a47bddca82821a871442f1d70bede860b3db3fac742b2661463501aa1c`).
+
+| Model seed | Real-only accuracy | TimeVAE 1:1 accuracy | Paired gain |
+|---:|---:|---:|---:|
+| 42 | 93.5054% | 94.9194% | +1.4140%p |
+| 111 | 93.7849% | 91.5653% | -2.2197%p |
+| 2026 | 91.3515% | 93.9658% | +2.6143%p |
+| 3407 | 85.1529% | 91.7955% | +6.6426%p |
+| 7777 | 94.3275% | 93.5712% | -0.7563%p |
+| **Mean ± sample SD** | **91.6245 ± 3.7904%** | **93.1634 ± 1.4421%** | **+1.5390 ± 3.4137%p** |
+
+Macro-F1 changed from 91.7092 ± 4.2450% to 93.5048 ± 1.3681%, with
+paired gain +1.7956 ± 3.7883%p. Macro recall changed from 92.0131 ± 3.5758%
+to 93.4707 ± 1.4404%, with paired gain +1.4576 ± 3.2180%p.
+
+Accuracy improved for three of five model seeds and decreased for two. The
+mean accuracy increased and between-seed sample SD decreased by 2.3482%p, but
+the paired gain SD exceeds its mean. With only five model seeds, this is
+promising evidence of average improvement/stabilization, not a stable or
+statistically established universal gain. TimeVAE is an adapted class-wise
+baseline (BFA angle encoding + train-only PCA), not the proposed contribution.
