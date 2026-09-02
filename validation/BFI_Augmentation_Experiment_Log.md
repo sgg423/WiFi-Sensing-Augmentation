@@ -127,3 +127,50 @@ the paired gain SD exceeds its mean. With only five model seeds, this is
 promising evidence of average improvement/stabilization, not a stable or
 statistically established universal gain. TimeVAE is an adapted class-wise
 baseline (BFA angle encoding + train-only PCA), not the proposed contribution.
+
+### RF-Diffusion Gaussian-native `t` sweep and 10% augmentation
+
+Three Gaussian-native RF-Diffusion pools were generated as complex V, converted
+to BFA, and evaluated with the same frozen BeamSense classifier. Each pool
+contains 40,675 windows. Unlike the earlier native sweep, all three pools retain
+a broad 20-class prediction distribution without severe A/G collapse.
+
+| Generated pool | Label agreement | Macro F1 | Macro recall |
+|---|---:|---:|---:|
+| `M1_w10_gaussian_native_t5_generated` | **83.4247%** | **83.1750%** | **83.4378%** |
+| `M1_w10_gaussian_native_t10_generated` | 82.8002% | 82.6357% | 83.0599% |
+| `M1_w10_gaussian_native_t19_generated` | 81.9226% | 81.3795% | 82.1903% |
+
+Because `t5` had the best label agreement, it was selected for the downstream
+augmentation experiment. The fixed real train fold has 28,529 windows and the
+unfiltered experiment adds the same 2,852 generated windows for every model
+seed (10% of the real training count). Split seed and augmentation seed are 111.
+
+| Model seed | Real-only accuracy | Gaussian `t5` 10% | Paired gain |
+|---:|---:|---:|---:|
+| 42 | 93.5054% | 93.8014% | +0.2960%p |
+| 111 | 93.7849% | 93.8178% | +0.0329%p |
+| 2026 | 91.3515% | 93.7356% | +2.3841%p |
+| 3407 | 85.1529% | 92.6833% | +7.5304%p |
+| 7777 | 94.3275% | 92.8806% | -1.4469%p |
+| **Mean** | **91.6245%** | **93.3838%** | **+1.7593%p** |
+
+Accuracy improved for four of five model seeds. Mean Macro F1 increased from
+91.7092% to 93.6821% (+1.9729%p), and mean Macro recall increased from 92.0131%
+to 93.6700% (+1.6569%p). The median accuracy gain is only +0.2960%p and the mean
+gain is strongly affected by seed 3407; therefore the result supports average
+improvement and stabilization but not universal improvement.
+
+A confidence-filtered ablation retained generated samples for which a frozen
+BeamSense teacher predicted the assigned label with confidence >= 0.90. Of
+29,220 selected windows, 21,033 matched the fixed real training fold. Using
+2,852 filtered windows produced mean accuracy 93.5252% across five model seeds,
+only 0.1414%p above the unfiltered result. Filtering improved three of five
+paired runs relative to unfiltered generation, but accuracy exceeded real-only
+for only two of five seeds. This does not establish a clear filtering advantage.
+
+Single-seed ratio checks for unfiltered `t5` used model/split/augmentation seed
+111. Accuracy was 93.8178%, 92.7327%, 91.9928%, and 92.4696% for 10%, 25%, 50%,
+and 100% augmentation, respectively, versus the 93.7849% paired real-only
+baseline. The 25% and 50% ratios require multi-seed evaluation before drawing a
+ratio-level conclusion.
