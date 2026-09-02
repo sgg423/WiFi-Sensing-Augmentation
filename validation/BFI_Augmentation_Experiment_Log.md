@@ -174,3 +174,31 @@ Single-seed ratio checks for unfiltered `t5` used model/split/augmentation seed
 and 100% augmentation, respectively, versus the 93.7849% paired real-only
 baseline. The 25% and 50% ratios require multi-seed evaluation before drawing a
 ratio-level conclusion.
+
+### Gaussian-native `t5` augmentation-ratio sweep
+
+The unfiltered `t5` pool was subsequently evaluated at 25%, 50%, and 100%
+augmentation with the same five model seeds. Every run uses split seed 111 and
+augmentation seed 111. The table reports paired accuracy against the fixed
+real-only baseline.
+
+| Ratio | Synthetic windows | Mean accuracy | Mean paired gain | Seeds improved |
+|---:|---:|---:|---:|---:|
+| 10% | 2,852 | **93.3838%** | **+1.7593%p** | **4/5** |
+| 25% | 7,132 | 91.7757% | +0.1513%p | 2/5 (one exact accuracy tie) |
+| 50% | 14,264 | 92.0520% | +0.4275%p | 1/5 |
+| 100% | 28,529 | 90.5327% | -1.0917%p | 1/5 |
+
+Ten percent is the selected operating point because it has the highest mean
+accuracy and improves four of five paired model seeds. The positive mean at 25%
+and 50% is not a consistent gain: it is driven by recovery of the low real-only
+seed 3407 while most paired seeds decline. At 100%, both the mean result and
+four of five paired runs are below baseline. These results indicate that the
+generated pool can act as a useful small regularizer, but larger synthetic
+mixtures increasingly introduce a real-to-generated distribution mismatch.
+
+At 50%, seeds 111 and 7777 both produced exactly 0.9199276554 accuracy. Their
+Macro F1 and Macro recall differ (seed 111: 0.9233231724/0.9228577964; seed
+7777: 0.9240873876/0.9236275105), as do the recorded model seeds. The identical
+accuracy therefore reflects the same number of correct predictions, not an
+identical result record.
