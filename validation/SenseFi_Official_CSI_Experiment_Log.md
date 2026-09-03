@@ -1295,3 +1295,34 @@ The CSI and BFI raw accuracies should not by themselves be interpreted as an
 intrinsic modality ranking because their input representations and sensing
 models differ. The primary augmentation comparison is the performance change
 from each modality's own real-only baseline.
+
+## 2026-09-03 — HAR-1 M1 CSI 10% paired multi-seed comparison
+
+To align the CSI experiment with the BFI evaluation, SenseFi ResNet18 was
+evaluated on HAR-1 Kitchen M1 with a fixed random-window split (`split_seed=111`),
+fixed synthetic selection (`augmentation_seed=111`), and five model seeds. The
+real training fold contains 28,817 windows; augmentation adds 2,882 generated
+CSI windows (10%). Validation and test contain only real CSI. All reported runs
+use protocol `sensefi-fixed-seeds-v1` and script SHA-256
+`2547fda0569cb5199a90143df81e916354b0499b80c288e8369f81db062ae32f`.
+
+| Model seed | Real-only accuracy | CSI 10% augmentation | Paired gain |
+|---:|---:|---:|---:|
+| 42 | 96.7617% | 96.5997% | -0.1619%p |
+| 111 | 93.2157% | 96.0816% | +2.8659%p |
+| 2026 | 91.2889% | 97.2150% | +5.9262%p |
+| 3407 | 89.7506% | 92.8433% | +3.0926%p |
+| 7777 | 97.8465% | 96.0978% | -1.7487%p |
+| **Mean** | **93.7727%** | **95.7675%** | **+1.9948%p** |
+
+Accuracy improved for three of five model seeds. Mean Macro F1 increased from
+93.7399% to 95.7084% (+1.9685%p), and mean Macro recall increased from 93.7257%
+to 95.6782% (+1.9525%p). The result supports an average 10% CSI augmentation
+benefit, but not universal per-seed improvement.
+
+Under the corresponding HAR-1 M1 BFI protocol, Gaussian-native `t5` 10%
+augmentation increased five-seed mean accuracy from 91.6245% to 93.3838%
+(+1.7593%p; four of five seeds improved). The CSI mean gain is 0.2355%p larger,
+while the BFI gain occurs in one more seed. Since SenseFi and BeamSense use
+different representations and classifiers, compare paired augmentation gains,
+not raw accuracy, as the modality-level outcome.
