@@ -1,4 +1,5 @@
 .DS_Store
+.venv-bfi-diffusion/
 *.swp
 CSI-Samples/*
 !CSI-Samples/.gitkeep
