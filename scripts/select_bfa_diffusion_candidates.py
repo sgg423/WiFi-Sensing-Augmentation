@@ -107,6 +107,9 @@ def main() -> None:
         "teacher_prediction": prediction[selected].astype(np.int16),
         "temporal_z": temporal_z[selected].astype(np.float32),
     }
+    for key in ("train_split_seed", "augmentation"):
+        if key in candidates.files:
+            output[key] = candidates[key]
     for key in ("source", "window_start", "participant", "candidate_rank"):
         if key in candidates.files:
             output[key] = candidates[key][selected]
