@@ -205,8 +205,6 @@ identical result record.
 
 ## 2026-09-05 — BFA Delta Diffusion experiments
 
-All BFA Delta Diffusion method descriptions and experiment records, including
-the original one-shot generator, K=2/K=5 candidate selection, distillation,
-sensing-aware v1, five-seed evaluation, and data-fidelity analysis, have been
-moved to
+The completed sensing-aware BFA Delta Diffusion v1 method, five-seed evaluation,
+and data-fidelity analysis are documented separately in
 [`Sensing_Aware_BFA_Delta_Diffusion_v1.md`](Sensing_Aware_BFA_Delta_Diffusion_v1.md).
