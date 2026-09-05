@@ -317,3 +317,45 @@ trainer checks Keras/PyTorch prediction parity before training. These losses are
 opt-in, preserving the behavior of all earlier commands. Evaluation must use a
 non-teacher BeamSense seed and the fixed `split_seed=111` test fold to distinguish
 generator improvement from teacher-specific optimization.
+
+### Sensing-aware one-shot BFA diffusion — completed five-seed evaluation
+
+The sensing-aware generator produced exactly 28,529 synthetic BFA windows, allowing
+the real training fold and synthetic pool to be combined at a 1:1 ratio. All runs
+used the same random-window split (`split_seed=111`), augmentation ordering
+(`augmentation_seed=111`), and held-out real validation/test folds. Only the
+BeamSense model initialization seed was changed.
+
+| Model seed | Real-only accuracy | Sensing-aware 1:1 accuracy | Paired gain |
+|---:|---:|---:|---:|
+| 42 | 93.5054% | 96.1361% | +2.6307%p |
+| 111 | 93.7849% | 94.8866% | +1.1016%p |
+| 2026 | 91.3515% | 94.3440% | +2.9924%p |
+| 3407 | 85.1529% | 96.3170% | +11.1641%p |
+| 7777 | 94.3275% | 91.4502% | -2.8773%p |
+| **Mean** | **91.6245%** | **94.6268%** | **+3.0023%p** |
+
+- Mean Macro F1: 91.7092% -> 94.8584% (+3.1492%p).
+- Mean Macro recall: 92.0131% -> 94.8427% (+2.8296%p).
+- Accuracy improved for four of five model seeds.
+- Excluding teacher seed 111, mean accuracy changed from 91.0843% to 94.5618%
+  (+3.4775%p), with three of four independent model seeds improving.
+- The best-of-five selected pool reached 95.1398% mean accuracy, only 0.5130%p
+  above the one-shot sensing-aware result, while requiring five candidates per
+  anchor at generation time.
+
+The result supports the claim that training-time sensing supervision can provide
+useful 1:1 BFA augmentation without best-of-five inference-time candidate selection.
+Because model seed 7777 degraded, the current claim is an average improvement with
+four-of-five seed consistency, not universal improvement for every initialization.
+
+### Sensing-aware generated-data fidelity
+
+The generated temporal-delta distributions remained close in distributional shape
+(mean global JS divergence 0.0353; mean class-conditional JS divergence 0.0451),
+and the mean temporal Z-score was 0.9231. However, generated mean temporal movement
+was only 55.2--68.8% of the corresponding real-data movement across the four BFA
+channels, and generated 95th-percentile deltas were also smaller. The generator is
+therefore still temporally over-smoothed despite improving downstream sensing on
+average. This limitation and the seed-7777 regression must be retained in the final
+analysis rather than reporting accuracy alone.
