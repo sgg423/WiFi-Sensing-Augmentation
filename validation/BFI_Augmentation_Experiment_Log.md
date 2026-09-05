@@ -359,3 +359,68 @@ channels, and generated 95th-percentile deltas were also smaller. The generator 
 therefore still temporally over-smoothed despite improving downstream sensing on
 average. This limitation and the seed-7777 regression must be retained in the final
 analysis rather than reporting accuracy alone.
+
+### Sensing-aware BFA Delta Diffusion v1 — method specification
+
+The evaluated v1 method is a BFA-specific anchor-conditioned conditional DDPM,
+not the best-of-five post-generation selection method. Its input is a quantized
+BFA window `X` with shape `(10,234,4)`, where the four channels have ranges
+`(512,512,128,128)`. Rather than generating all ten frames directly, it models
+the nine frame-to-frame circular deltas:
+
+```text
+real first-frame anchor + activity label + Gaussian noise
+    -> conditional delta denoiser
+    -> nine generated BFA deltas
+    -> cumulative BFA reconstruction
+    -> synthetic uint16 BFA window (10,234,4)
+```
+
+For each channel with quantization range `M`, the training target is computed as
+the shortest signed change
+`((X[t+1] - X[t] + M/2) mod M) - M/2`, then normalized with statistics computed
+from the fixed real training fold. The first real frame is retained as an anchor.
+Its two 512-level channels are encoded with sine/cosine features, and its two
+128-level channels are scaled to `[-1,1]`. These six anchor features are repeated
+over the nine delta positions and concatenated with the four noisy-delta channels.
+
+The denoiser consists of a `10 -> 64` input convolution, six residual CNN blocks,
+and a `64 -> 4` output convolution. A sinusoidal diffusion-timestep embedding and
+a learned 20-class activity embedding are added and injected into every residual
+block. The network predicts the Gaussian noise added at a randomly sampled
+diffusion step.
+
+The v1 training objective is
+
+```text
+L_total = L_diffusion
+        + lambda_x0       * L_clean_delta
+        + lambda_temporal * L_temporal_fidelity
+        + lambda_cls      * L_BeamSense
+```
+
+- `L_diffusion`: MSE between the injected and predicted Gaussian noise.
+- `L_clean_delta`: Smooth L1 loss between the real and reconstructed clean,
+  normalized BFA deltas.
+- `L_temporal_fidelity`: matches channel-wise absolute-delta mean, standard
+  deviation, and 95th percentile to preserve ordinary and high-motion dynamics.
+- `L_BeamSense`: activity cross-entropy after differentiably reconstructing a
+  BFA window from the anchor and predicted deltas.
+
+For the sensing loss, the public Keras BeamSense CNN is converted to an equivalent
+PyTorch model and frozen. Its parameters are not updated; gradients pass through
+it only to train the diffusion denoiser to preserve the requested activity. A
+Keras/PyTorch output-parity check is performed before training.
+
+During generation, v1 begins with one Gaussian-noise delta tensor per real training
+anchor and performs reverse diffusion conditioned on that anchor and its activity
+label. The generated deltas are de-normalized, rounded, accumulated from the real
+first frame, wrapped or clipped to the appropriate channel ranges, and saved in
+the native BeamSense input format. Thus v1 generates a new nine-transition BFA
+trajectory from a real starting frame; it does not claim fully unconditional
+generation of all ten frames.
+
+The completed evaluation uses 28,529 generated windows and 28,529 real training
+windows at a 1:1 ratio. It does not generate multiple candidates and choose the
+best one at inference time. This distinction separates v1 from the earlier K=5
+candidate-selection experiment.
