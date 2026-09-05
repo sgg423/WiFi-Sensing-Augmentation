@@ -202,3 +202,86 @@ Macro F1 and Macro recall differ (seed 111: 0.9233231724/0.9228577964; seed
 7777: 0.9240873876/0.9236275105), as do the recorded model seeds. The identical
 accuracy therefore reflects the same number of correct predictions, not an
 identical result record.
+
+## 2026-09-05 — BFA Delta Diffusion best-of-five 1:1 augmentation
+
+### BFA-specific generator
+
+An anchor-conditioned diffusion model was trained directly on the circular
+frame-to-frame deltas of quantized BFA windows. Each input window has shape
+`(10,234,4)`. The first real BFA frame is retained as the anchor, and the model
+generates the remaining nine frame deltas conditioned on the activity label.
+The four BFA channels use their respective circular ranges (512, 512, 128,
+128). The generator uses only the fixed real training fold (`split_seed=111`).
+
+The first unfiltered one-candidate-per-anchor pool contained 28,529 synthetic
+windows. Its frozen-Teacher label agreement was 78.047%, Macro F1 was 77.204%,
+and Macro recall was 77.252%. Adding this entire pool at 1:1 for model seed 111
+reduced BeamSense accuracy from 93.7849% to 92.5518% (-1.2331%p). This showed
+that the initial one-shot generator was not sufficiently reliable for 1:1
+augmentation.
+
+### Best-of-five sensing-aware selection
+
+Five independent diffusion candidates were generated for every real training
+anchor (142,645 candidates total). One candidate per anchor was selected using
+the assigned-activity confidence of the frozen real-only BeamSense teacher and
+a temporal-realism penalty based on the real per-class delta distribution.
+Incorrect teacher predictions received an additional penalty. Validation and
+test windows were not used as generation anchors or synthetic training data.
+
+- Candidate teacher label agreement: 78.1773%.
+- Selected teacher label agreement: 93.0211%.
+- Selected mean target confidence: 91.6981%.
+- Selected mean temporal Z-score: 0.9083.
+- Selected synthetic windows: 28,529 (exactly one per real training anchor).
+- Selected class counts exactly match the real training-fold class counts.
+- Selection parameters: realism weight 0.15; incorrect-prediction penalty 5.0.
+
+The selected pool was added to the 28,529 real training windows at exactly 1:1.
+All downstream runs use the same split (`split_seed=111`), generated pool, and
+augmentation ordering (`augmentation_seed=111`). Only BeamSense model seed
+changes.
+
+| Model seed | Real-only accuracy | Selected 1:1 accuracy | Paired gain |
+|---:|---:|---:|---:|
+| 42 | 93.5054% | 96.4979% | +2.9924%p |
+| 111 | 93.7849% | 91.4831% | -2.3019%p |
+| 2026 | 91.3515% | 95.3305% | +3.9790%p |
+| 3407 | 85.1529% | 95.9060% | +10.7530%p |
+| 7777 | 94.3275% | 96.4814% | +2.1539%p |
+| **Mean ± sample SD** | **91.6245 ± 3.7904%** | **95.1398 ± 2.1000%** | **+3.5153 ± 4.7055%p** |
+
+Mean Macro F1 increased from 91.7092% to 95.3031% (+3.5939%p), and mean Macro
+recall increased from 92.0131% to 95.3238% (+3.3106%p). Accuracy improved for
+four of five model seeds, and the median paired accuracy gain was +2.9924%p.
+Excluding teacher seed 111, all four independent model seeds improved; their
+mean accuracy changed from 91.0843% to 96.0539% (+4.9696%p). Teacher seed 111
+is reported rather than discarded, but the independent-seed result is also
+reported because that teacher checkpoint participated in synthetic selection.
+
+This experiment establishes that sensing-aware candidate selection can turn
+the initially harmful 1:1 synthetic pool into a beneficial one on average. It
+does not yet establish that five candidates are necessary or that the gain
+generalizes beyond this inspected HAR-1 random-window test split. Required next
+checks are candidate-count ablation (K=2/3/5), an untouched HAR-3 evaluation,
+and comparison against TimeVAE under the same protocol.
+
+### One-shot selection distillation — implementation completed, evaluation pending
+
+To reduce the five-candidate generation cost, the selected one-per-anchor pool
+will be used as teacher targets to fine-tune the existing Delta Diffusion model.
+Fine-tuning mixes 28,529 real deltas and 28,529 selected teacher deltas, then
+generates only one candidate for each anchor. This produces a 100% synthetic
+pool directly instead of generating a 500% candidate pool at inference.
+
+- Implementation commit: `6b6ebf7`.
+- Initialization: original full Delta Diffusion checkpoint, seed 42.
+- Planned fine-tuning: 20 epochs, learning rate `5e-5`.
+- Planned output: `bfa_delta_ddpm_har1_distilled_seed42/generated_bfa.npz`.
+- Evaluation target: approach the best-of-five mean accuracy while retaining
+  exactly 28,529 one-shot synthetic windows.
+
+The initial best-of-five teacher construction cost must remain disclosed. The
+one-shot variant is considered successful only after standalone generated-label
+diagnostics and paired five-seed 1:1 downstream evaluation are completed.
