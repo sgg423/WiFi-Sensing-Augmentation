@@ -285,3 +285,35 @@ pool directly instead of generating a 500% candidate pool at inference.
 The initial best-of-five teacher construction cost must remain disclosed. The
 one-shot variant is considered successful only after standalone generated-label
 diagnostics and paired five-seed 1:1 downstream evaluation are completed.
+
+### One-shot distillation and K=2 candidate ablation
+
+The distilled one-shot pool achieved 75.0745% frozen-teacher label agreement,
+below both the original one-shot pool (78.0470%) and the selected K=5 pool
+(93.0211%). Nevertheless, its seed-42 1:1 downstream accuracy was 94.2289%, a
++0.7234%p gain over the paired 93.5054% real-only baseline. This is weaker than
+the K=5 gain and therefore does not yet replace candidate selection.
+
+Generating two candidates per anchor and selecting one increased frozen-teacher
+label agreement from 78.0276% over all candidates to 86.8099% after selection.
+The selected K=2 pool retained exactly 28,529 windows and the real training-fold
+class distribution. Its seed-42 1:1 downstream accuracy was 94.7221%, a
++1.2167%p paired gain. The remaining model seeds are pending.
+
+### Sensing-aware one-shot BFA diffusion — implementation
+
+The BFA Delta Diffusion trainer now optionally applies training-time quality
+objectives instead of relying only on post-generation candidate selection:
+
+- clean normalized-delta reconstruction loss on the predicted diffusion `x0`;
+- per-angle temporal-magnitude matching loss;
+- activity cross-entropy from a frozen BeamSense teacher;
+- differentiable reconstruction from generated deltas to BFA frames, including
+  circular handling of the two 512-level angle channels.
+
+The Keras BeamSense checkpoint is converted to an equivalent frozen PyTorch
+network so its classification gradient can reach the diffusion model. The
+trainer checks Keras/PyTorch prediction parity before training. These losses are
+opt-in, preserving the behavior of all earlier commands. Evaluation must use a
+non-teacher BeamSense seed and the fixed `split_seed=111` test fold to distinguish
+generator improvement from teacher-specific optimization.
