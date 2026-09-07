@@ -203,8 +203,8 @@ Macro F1 and Macro recall differ (seed 111: 0.9233231724/0.9228577964; seed
 accuracy therefore reflects the same number of correct predictions, not an
 identical result record.
 
-## 2026-09-05 — BFA Delta Diffusion experiments
+## 2026-09-05 — BeamDiff experiments
 
-The completed sensing-aware BFA Delta Diffusion v1 method, five-seed evaluation,
+The completed BeamDiff v1 method, five-seed evaluation,
 and data-fidelity analysis are documented separately in
 [`Sensing_Aware_BFA_Delta_Diffusion_v1.md`](Sensing_Aware_BFA_Delta_Diffusion_v1.md).
