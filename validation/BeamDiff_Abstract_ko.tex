@@ -1,0 +1,25 @@
+\begin{abstract}
+Wi-Fi 센싱은 일반적으로 채널 상태 정보(Channel State Information, CSI)를
+사용하지만, 상용 장치에서 CSI를 획득하려면 지원되는 하드웨어, 수정된 펌웨어
+또는 전용 수집 도구가 필요한 경우가 많다. 표준 Wi-Fi 빔포밍 절차에서
+교환되는 빔포밍 피드백 정보(Beamforming Feedback Information, BFI)는 인간
+센싱을 위한 접근성 높은 대안이 될 수 있다. 그러나 기존 RF 생성 기법을
+BFI에 그대로 적용하기는 어렵다. 특히 복원된 복소수 빔포밍 행렬을 RF
+디퓨전 모델에 직접 적용하면 downstream BFI 센싱 모델에 필요한 양자화 각도
+구조, 시간적 beam 변화 및 행동 의미가 안정적으로 보존되지 않는다. 본
+연구에서는 빔포밍 피드백 각도(Beamforming Feedback Angle, BFA) 시퀀스
+생성에 특화된 센싱 인지형 조건부 디퓨전 프레임워크 \textbf{BeamDiff}를
+제안한다. BeamDiff는 첫 실제 프레임을 anchor로 유지하고, 이후의 프레임 간
+변화량을 BFA 채널별 양자화 범위에 따른 최단 경로 순환 delta로 생성한다.
+학습 목적 함수는 diffusion noise prediction, clean-delta reconstruction,
+temporal-fidelity regularization 및 고정된 행동 분류기의 supervision을
+결합한다. BeamDiff는 CSI-BFI-HAR 데이터셋의 HAR-1 및 HAR-3 환경에서 실제
+validation 및 test 데이터를 고정하고, train 데이터만 1:1로 증강하여
+평가하였다. HAR-1에서는 5개 모델 초기화 seed에 대한 BeamSense 평균
+정확도가 91.62\%에서 94.63\%로 향상되어 평균 3.00\%p의 paired gain을
+보였으며, 5개 seed 중 4개에서 성능이 향상되었다. HAR-3의 paired
+평가에서는 정확도가 98.70\%에서 99.65\%로 향상되었고 test error는 81개에서
+22개로 감소하였다. 이 결과는 BFA 고유의 순환 구조와 시간적 특성을
+모델링함으로써 BFI 기반 인간 행동 센싱에 유용한 합성 학습 데이터를 생성할
+수 있음을 보여준다.
+\end{abstract}
