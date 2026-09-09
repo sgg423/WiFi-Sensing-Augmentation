@@ -76,12 +76,8 @@ BFA 범위로 변환함으로써, 기존 BFI 센싱 모델에 직접 입력할 �
 BeamDiff는 CSI-BFI-HAR 데이터셋의 HAR-1 및 HAR-3 환경에서 평가하였다.
 모든 실험은 real-only와 real-plus-synthetic 조건을 paired protocol로
 비교했으며, 실제 validation 및 test split은 동일하게 고정하고 train split에만
-합성 데이터를 추가하였다. HAR-1의 1:1 증강에서는 5개의 모델 초기화 seed에
-대한 BeamSense 평균 정확도가 91.62\%에서 94.63\%로 향상되어 평균
-3.00\%p의 paired gain을 보였으며, 5개 seed 중 4개에서 성능이 향상되었다.
-HAR-3의 초기 paired 평가에서는 정확도가 98.70\%에서 99.65\%로 향상되고
-test error가 81개에서 22개로 감소하였다. 이러한 결과는 BFA 특화 생성
-방식이 서로 다른 센싱 환경의 in-domain 센싱 성능을 높일 수 있음을 보여준다.
+합성 데이터를 추가하였다. 이를 통해 생성 데이터의 fidelity, downstream
+센싱 성능 및 모델 초기화 seed에 따른 강건성을 평가한다.
 
 본 연구의 주요 기여는 다음과 같다.
 
@@ -103,5 +99,5 @@ test error가 81개에서 22개로 감소하였다. 이러한 결과는 BFA 특�
     증강 이득, 생성 데이터 fidelity 및 모델 seed에 따른 변화를 분석한다.
 \end{itemize}
 
-% 최종 제출 전 HAR-3 단일 seed 결과를 다중 seed 평균과 분산으로 교체하고,
-% 모든 BibTeX key가 실제 참고문헌 파일과 일치하는지 확인해야 한다.
+% 최종 제출 전 모든 BibTeX key를 확인하고, 구체적인 수치 결과는 초록과
+% 평가 절에서만 제시한다.

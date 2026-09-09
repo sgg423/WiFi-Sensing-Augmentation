@@ -81,16 +81,11 @@ classifier. The generated transitions are accumulated from the anchor and mapped
 back to valid quantized BFA values, producing synthetic samples that can be
 directly consumed by existing BFI sensing models.
 
-We evaluate BeamDiff on the HAR-1 and HAR-3 environments of the CSI-BFI-HAR
+We evaluate BeamDiff in the HAR-1 and HAR-3 environments of the CSI-BFI-HAR
 dataset using paired real-only and real-plus-synthetic training protocols. The
-real validation and test folds remain fixed, and only training data are augmented.
-On HAR-1, one-to-one augmentation improves the mean BeamSense accuracy from
-91.62\% to 94.63\% across five model initialization seeds, corresponding to a
-mean paired gain of 3.00 percentage points, with improvements in four of five
-seeds. On HAR-3, an initial paired evaluation improves accuracy from 98.70\% to
-99.65\% and reduces the number of test errors from 81 to 22. These results show
-that BFA-specific generation can improve in-domain sensing performance across
-different sensing environments.
+real validation and test folds remain fixed, and only the training folds are
+augmented. This evaluation examines generated-data fidelity, downstream sensing
+performance, and robustness across model initialization seeds.
 
 The main contributions of this work are summarized as follows:
 
@@ -113,5 +108,5 @@ The main contributions of this work are summarized as follows:
     seed-dependent behavior.
 \end{itemize}
 
-% Before final submission, replace the single-seed HAR-3 sentence with the
-% completed multi-seed mean and variability, and verify all BibTeX keys.
+% Before final submission, verify all BibTeX keys and report detailed numerical
+% results only in the abstract and evaluation section.
