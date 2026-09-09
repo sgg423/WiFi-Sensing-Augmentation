@@ -1,0 +1,108 @@
+\section{서론}
+
+카메라 기반 인간 센싱 시스템은 널리 활용되고 있지만, 사생활 침해 우려,
+조명 변화, 시야 가림 등의 문제로 실제 환경에서의 활용이 제한될 수 있다.
+이에 따라 Wi-Fi 센싱은 비접촉·비시각 방식의 대안으로 주목받고 있다.
+Wi-Fi 센싱은 사람의 움직임으로 인해 발생하는 무선 신호 전파 변화를
+활용하므로, 사용자가 별도의 센서를 착용하지 않아도 기존 통신 인프라를
+이용하여 다양한 인간 센싱 응용을 지원할 수 있다.
+
+대부분의 Wi-Fi 센싱 연구는 채널 상태 정보(Channel State Information,
+CSI)를 사용한다. CSI는 수신 신호 세기 지표(Received Signal Strength
+Indicator, RSSI)와 같은 거친 측정값과 달리 송수신 안테나 쌍에 대한
+부반송파 단위의 진폭 및 위상 응답을 제공한다 \cite{halperin2011tool}.
+이러한 측정값의 변화는 위치 추정, 호흡 모니터링, 제스처 인식 및 인간 행동
+인식 등 다양한 센싱 응용에 활용되어 왔다 \cite{wang2015understanding}.
+
+CSI는 높은 센싱 성능을 제공하지만, 다수의 상용 Wi-Fi 장치에서 쉽게
+획득할 수 있는 정보는 아니다. CSI 추출에는 일반적으로 지원되는 네트워크
+인터페이스 카드, 수정된 펌웨어, 모니터 모드 설정 또는 전용 CSI 수집 도구가
+필요하다 \cite{gringoli2019free}. 이러한 요구 사항은 CSI 기반 센싱
+시스템의 실제 배치를 제한할 수 있다. 최근에는 이에 대한 대안으로 빔포밍
+피드백 정보(Beamforming Feedback Information, BFI)를 활용하는 연구가
+진행되고 있다 \cite{beamsense2023,bfmsense2024,beamsense2025,wibfi2023}.
+IEEE 802.11ac/ax 네트워크에서 단말은 sounding 신호를 이용하여 무선
+채널을 추정하고, 압축된 빔포밍 피드백을 액세스 포인트에 전송한다
+\cite{ieee2021ax,ieee2013ac}. BFI는 표준화된 빔포밍 절차에서 생성되기
+때문에, Wi-Fi 통신 과정에서 이미 교환되는 정보를 센싱에 활용할 수 있다는
+장점이 있다.
+
+BFI는 무선 채널 정보를 압축된 형태로 표현한다. 피드백 오버헤드를 줄이기
+위해 빔포밍 행렬은 일반적으로 $\phi$와 $\psi$로 표현되는 양자화 각도
+파라미터를 사용하여 부호화된다 \cite{itahara2022beamforming,li2024efficient}.
+이러한 빔포밍 피드백 각도(Beamforming Feedback Angle, BFA)는 복소수
+빔포밍 행렬 $\mathbf{V}$를 나타낸다. $\mathbf{V}$는 추정된 무선 채널의
+우측 특이 행렬에 해당하며, 빔포밍에 사용되는 송신 측 공간 방향을 표현한다.
+이 압축 표현에는 사람의 행동에 영향을 받는 채널 의존 정보가 남아 있지만,
+데이터 구조와 물리적 의미는 기존 CSI와 다르다. 따라서 BFI는 빔포밍 표현의
+특성을 고려하여 처리해야 한다.
+
+다른 데이터 기반 무선 센싱 방식과 마찬가지로 BFI 기반 행동 인식의 성능도
+충분한 라벨 학습 데이터의 확보 여부에 크게 좌우된다. 특히 다양한 행동,
+참가자 및 배치 환경을 포함하는 무선 측정 데이터를 수집하고 라벨링하는
+과정에는 많은 시간이 필요하다. 잡음 추가, 스케일 조정 또는 원소 단위 혼합과
+같은 기존 증강 기법은 샘플 수를 늘릴 수 있지만, BFA의 순환 양자화 구조와
+시간적 변화를 명시적으로 모델링하지 않는다. 따라서 downstream BFI 센싱
+모델이 사용하는 데이터 구조에 특화된 생성 기법이 필요하다.
+
+RF-Diffusion은 RF 시계열 신호의 시간·주파수 영역 및 복소수 특성을
+학습함으로써 생성형 데이터 증강의 가능성을 보였다 \cite{chi2024rfdiffusion}.
+본 연구에서는 비교적 접근성이 높은 BFI로 이 방식을 확장하기 위해, 먼저
+복원된 복소수 빔포밍 행렬 $\mathbf{V}$를 생성 대상으로 사용하는 방법을
+검토하였다. 그러나 두 데이터가 모두 복소수라는 사실만으로 $\mathbf{V}$와
+CSI가 구조적으로 동일한 것은 아니다. CSI는 채널 응답 자체를 나타내는 반면,
+$\mathbf{V}$는 채널의 공간 방향을 나타내며 정규화 및 기하학적 제약과 위상
+모호성을 갖는다. 초기 실험에서 복소 행렬을 직접 생성한 결과, 예상된 텐서
+형태와 기본적인 수치 유효성은 유지되었지만 BFI 센싱에 필요한 시간적 beam
+변화와 행동 의미를 안정적으로 보존하지 못했다. 이는 입력 형식만 변경하여
+CSI 중심의 RF 생성 모델을 BFI에 적용하는 방식으로는 충분하지 않음을
+보여준다.
+
+이 문제를 해결하기 위해 본 연구에서는 BFA 시퀀스 생성에 특화된 센싱 인지형
+디퓨전 프레임워크인 \textbf{BeamDiff}를 제안한다. BeamDiff는 절대 BFA
+프레임을 각각 독립적으로 생성하지 않는다. 대신 10프레임 window의 첫 실제
+프레임을 anchor로 유지하고, 이후 9개의 프레임 간 변화량을 생성한다. 각
+변화량은 BFA 채널별 양자화 범위를 고려한 최단 경로 순환 delta로 표현하여
+각도 경계에서 발생하는 인위적인 불연속을 방지한다. Denoising network는
+첫 프레임 anchor, diffusion timestep 및 목표 행동 조건을 함께 입력받는다.
+또한 표준 diffusion noise-prediction objective에 clean-delta reconstruction
+loss, temporal-fidelity loss 및 frozen BeamSense classifier의 supervision을
+결합한다. 생성된 변화량을 anchor부터 순차적으로 누적한 뒤 유효한 양자화
+BFA 범위로 변환함으로써, 기존 BFI 센싱 모델에 직접 입력할 수 있는 합성
+샘플을 생성한다.
+
+BeamDiff는 CSI-BFI-HAR 데이터셋의 HAR-1 및 HAR-3 환경에서 평가하였다.
+모든 실험은 real-only와 real-plus-synthetic 조건을 paired protocol로
+비교했으며, 실제 validation 및 test split은 동일하게 고정하고 train split에만
+합성 데이터를 추가하였다. HAR-1의 1:1 증강에서는 5개의 모델 초기화 seed에
+대한 BeamSense 평균 정확도가 91.62\%에서 94.63\%로 향상되어 평균
+3.00\%p의 paired gain을 보였으며, 5개 seed 중 4개에서 성능이 향상되었다.
+HAR-3의 초기 paired 평가에서는 정확도가 98.70\%에서 99.65\%로 향상되고
+test error가 81개에서 22개로 감소하였다. 이러한 결과는 BFA 특화 생성
+방식이 동일 환경 내 센싱 성능을 높일 수 있음을 보여준다. 한편 참가자가 다른
+조건의 실험에서는 성능이 크게 감소하여, 미관측 참가자에 대한 일반화는 데이터
+증강과 구분하여 다루어야 할 더 어려운 문제임을 확인하였다.
+
+본 연구의 주요 기여는 다음과 같다.
+
+\begin{itemize}
+    \item 복소 RF 생성형 증강 기법을 BFI로 확장하는 과정을 분석하고,
+    일반적인 복소 행렬 생성과 BFI 센싱에 필요한 beam 방향 변화 사이의
+    구조적 불일치를 확인하였다.
+
+    \item 양자화된 프레임을 독립적으로 생성하는 대신, 실제 첫 프레임을
+    anchor로 사용하여 최단 경로 순환 각도 변화량을 생성하는 BFA 특화 조건부
+    디퓨전 프레임워크 BeamDiff를 제안한다.
+
+    \item Diffusion noise prediction, clean-delta reconstruction,
+    temporal-fidelity regularization 및 frozen classifier supervision을
+    결합하여 BFA의 시간적 특성과 행동 의미를 함께 보존하는 센싱 인지형
+    학습 목적 함수를 설계한다.
+
+    \item 두 BFI 센싱 환경에서 paired downstream evaluation을 수행하고,
+    증강 이득, 생성 데이터 fidelity, 모델 seed에 따른 변화 및
+    cross-participant 조건의 한계를 분석한다.
+\end{itemize}
+
+% 최종 제출 전 HAR-3 단일 seed 결과를 다중 seed 평균과 분산으로 교체하고,
+% 모든 BibTeX key가 실제 참고문헌 파일과 일치하는지 확인해야 한다.
