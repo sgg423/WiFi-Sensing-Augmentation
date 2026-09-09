@@ -1,0 +1,118 @@
+\section{Introduction}
+
+Although camera-based human sensing systems are widely deployed, their practical
+use can be limited by privacy concerns, illumination changes, and visual
+occlusion. Wi-Fi sensing has therefore emerged as a promising non-contact and
+non-visual alternative. By exploiting variations in wireless signal propagation
+caused by human movement, Wi-Fi sensing can support human sensing applications
+using existing communication infrastructure without requiring users to wear
+dedicated sensors.
+
+Most Wi-Fi sensing studies rely on Channel State Information (CSI). Compared with
+coarse-grained measurements such as the Received Signal Strength Indicator
+(RSSI), CSI provides subcarrier-level amplitude and phase responses across
+transmit--receive antenna pairs \cite{halperin2011tool}. Variations in these
+measurements have been used for a range of sensing applications, including
+localization, respiration monitoring, gesture recognition, and human activity
+recognition \cite{wang2015understanding}.
+
+Despite its sensing capability, CSI is not readily available from many commercial
+Wi-Fi devices. Its extraction commonly depends on supported network interface
+cards, modified firmware, monitor-mode configurations, or specialized CSI
+collection tools \cite{gringoli2019free}. These requirements can restrict the
+practical deployment of CSI-based sensing systems. Recent studies have therefore
+investigated Beamforming Feedback Information (BFI) as an alternative source of
+sensing information \cite{beamsense2023,bfmsense2024,beamsense2025,wibfi2023}.
+In IEEE 802.11ac/ax networks, a station estimates the wireless channel from a
+sounding transmission and returns compressed beamforming feedback to the access
+point \cite{ieee2021ax,ieee2013ac}. Because BFI is produced as part of
+standardized beamforming procedures, it provides an opportunity to perform
+sensing using information already exchanged during Wi-Fi communication.
+
+BFI represents wireless channel information in a compressed form. To reduce
+feedback overhead, the beamforming matrix is encoded using quantized angular
+parameters, commonly denoted by $\phi$ and $\psi$
+\cite{itahara2022beamforming,li2024efficient}. These Beamforming Feedback Angles
+(BFAs) describe the complex-valued beamforming matrix $\mathbf{V}$, which
+corresponds to the right singular matrix of the estimated wireless channel and
+represents the transmit-side spatial directions used for beamforming. Although
+this compressed representation retains channel-dependent information affected by
+human activity, its data structure and physical meaning differ from those of
+conventional CSI. BFI should therefore be handled according to the characteristics
+of its beamforming representation.
+
+As with other data-driven wireless sensing approaches, the performance of
+BFI-based activity recognition depends on the availability of sufficient labeled
+training data. Collecting and labeling wireless measurements is time-consuming,
+particularly when the measurements must cover multiple activities, participants,
+and deployment environments. Conventional augmentation operations such as noise
+injection, scaling, or element-wise mixing may increase the number of samples but
+do not explicitly model the circular quantization and temporal evolution of BFAs.
+This motivates a generative approach tailored to the structure used by downstream
+BFI sensing models.
+
+RF-Diffusion has demonstrated the potential of generative augmentation for
+time-series RF signals by learning temporal, frequency-domain, and complex-valued
+signal characteristics \cite{chi2024rfdiffusion}. Motivated by the accessibility
+of BFI, we first explored extending this approach to BFI by using the reconstructed
+complex beamforming matrix $\mathbf{V}$ as the generation target. However, being
+complex-valued does not make $\mathbf{V}$ structurally equivalent to CSI. CSI
+directly describes a channel response, whereas $\mathbf{V}$ represents channel
+directions and is governed by normalization and geometric constraints as well as
+phase ambiguity. Our exploratory results showed that direct complex-matrix
+generation could preserve the expected tensor shape and basic numerical validity
+while failing to reliably retain the temporal beam dynamics and activity semantics
+required for BFI-based sensing. This mismatch indicates that extending a
+CSI-oriented RF generator through input-format modification alone is insufficient
+for BFI sensing augmentation.
+
+To address this problem, we present \textbf{BeamDiff}, a sensing-aware diffusion
+framework specialized for BFA sequence generation. Rather than independently
+generating absolute BFA frames, BeamDiff preserves the first real frame as an
+anchor and generates the nine frame-to-frame transitions of a ten-frame window.
+It represents each transition as a shortest-path circular delta according to the
+quantization range of each BFA channel, thereby avoiding artificial discontinuities
+at angular boundaries. The denoising network is conditioned on the first-frame
+anchor, diffusion timestep, and requested activity. In addition to the standard
+diffusion noise-prediction objective, BeamDiff uses clean-delta reconstruction and
+temporal-fidelity losses together with supervision from a frozen BeamSense
+classifier. The generated transitions are accumulated from the anchor and mapped
+back to valid quantized BFA values, producing synthetic samples that can be
+directly consumed by existing BFI sensing models.
+
+We evaluate BeamDiff on the HAR-1 and HAR-3 environments of the CSI-BFI-HAR
+dataset using paired real-only and real-plus-synthetic training protocols. The
+real validation and test folds remain fixed, and only training data are augmented.
+On HAR-1, one-to-one augmentation improves the mean BeamSense accuracy from
+91.62\% to 94.63\% across five model initialization seeds, corresponding to a
+mean paired gain of 3.00 percentage points, with improvements in four of five
+seeds. On HAR-3, an initial paired evaluation improves accuracy from 98.70\% to
+99.65\% and reduces the number of test errors from 81 to 22. These results show
+that BFA-specific generation can improve in-domain sensing performance, while
+cross-participant experiments reveal that generalization to unseen participants
+remains a separate and substantially harder problem.
+
+The main contributions of this work are summarized as follows:
+
+\begin{itemize}
+    \item We investigate the extension of complex RF generative augmentation to
+    BFI and identify a structural mismatch between generic complex-matrix
+    generation and the beam-direction dynamics required for BFI-based sensing.
+
+    \item We propose BeamDiff, a BFA-specific conditional diffusion framework
+    that generates shortest-path circular angle transitions from a real
+    first-frame anchor rather than independently generating quantized frames.
+
+    \item We introduce a sensing-aware objective that combines diffusion noise
+    prediction, clean-delta reconstruction, temporal-fidelity regularization, and
+    frozen-classifier supervision to preserve both BFA dynamics and activity
+    semantics.
+
+    \item We conduct paired downstream evaluations in two BFI sensing
+    environments and analyze augmentation gain, generated-data fidelity,
+    seed-dependent behavior, and the remaining limitations under
+    cross-participant evaluation.
+\end{itemize}
+
+% Before final submission, replace the single-seed HAR-3 sentence with the
+% completed multi-seed mean and variability, and verify all BibTeX keys.
