@@ -81,11 +81,12 @@ classifier. The generated transitions are accumulated from the anchor and mapped
 back to valid quantized BFA values, producing synthetic samples that can be
 directly consumed by existing BFI sensing models.
 
-We evaluate BeamDiff in the HAR-1 and HAR-3 environments of the CSI-BFI-HAR
-dataset using paired real-only and real-plus-synthetic training protocols. The
-real validation and test folds remain fixed, and only the training folds are
-augmented. This evaluation examines generated-data fidelity, downstream sensing
-performance, and robustness across model initialization seeds.
+We evaluate BeamDiff using BFI measurements from the HAR-1 Kitchen and HAR-3
+Classroom scenarios provided by the CSI-BFI-HAR dataset. We compare paired
+real-only and real-plus-synthetic training protocols while keeping the real
+validation and test folds fixed and augmenting only the training folds. This
+evaluation examines generated-data fidelity, downstream sensing performance,
+and robustness across model initialization seeds.
 
 The main contributions of this work are summarized as follows:
 

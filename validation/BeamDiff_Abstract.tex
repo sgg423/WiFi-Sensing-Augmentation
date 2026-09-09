@@ -12,9 +12,10 @@ conditional diffusion framework for generating Beamforming Feedback Angle
 subsequent transitions as shortest-path circular deltas according to each BFA
 channel's quantization range. Its objective combines diffusion noise prediction,
 clean-delta reconstruction, temporal-fidelity regularization, and supervision
-from a frozen activity classifier. We evaluate BeamDiff in the HAR-1 and HAR-3
-environments of the CSI-BFI-HAR dataset using fixed real validation and test
-sets and one-to-one training-data augmentation. On HAR-1, the mean BeamSense
+from a frozen activity classifier. We evaluate BeamDiff using BFI measurements
+from the HAR-1 Kitchen and HAR-3 Classroom scenarios provided by the
+CSI-BFI-HAR dataset. The real validation and test sets are fixed, and the
+training data are augmented at a one-to-one ratio. On HAR-1, the mean BeamSense
 accuracy across five model initialization seeds increases from 91.62\% to
 94.63\%, a mean paired gain of 3.00 percentage points, with gains in four of
 five seeds. In a paired HAR-3 evaluation, accuracy increases from 98.70\% to
