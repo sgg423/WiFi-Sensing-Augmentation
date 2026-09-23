@@ -73,8 +73,8 @@ be directly used by existing BFI sensing models.
 We evaluate BeamDiff on the HAR-1 and HAR-3 subsets of the CSI-BFI-HAR dataset
 using fixed real training, validation, and test partitions. On HAR-1, adding one
 synthetic BFA window per real training window improves the mean BeamSense accuracy
-from 91.62% to 94.63% over five classifier initialization seeds, corresponding to
-a mean paired gain of 3.00 percentage points; four of the five seeds improve. On
+from 92.46% to 96.08% over five classifier initialization seeds, corresponding to
+a mean paired gain of 3.63 percentage points; all five seeds improve. On
 HAR-3, an initial paired evaluation improves accuracy from 98.70% to 99.65%,
 reducing the number of test errors from 81 to 22. These results indicate that
 BFA-specific, sensing-aware generation can improve in-domain activity recognition,
@@ -147,8 +147,8 @@ BFA 양자화 범위로 변환되므로 기존 BFI 센싱 모델에 직접 입�
 
 HAR-1과 HAR-3에서 고정된 real train, validation 및 test partition을 사용해 BeamDiff를
 평가하였다. HAR-1에서 실제 train window와 동일한 수의 합성 window를 추가한 결과,
-5개 classifier initialization seed의 평균 BeamSense 정확도가 91.62%에서 94.63%로
-증가하여 평균 3.00%p의 paired gain을 보였고 5개 seed 중 4개에서 성능이 향상됐다.
+5개 classifier initialization seed의 평균 BeamSense 정확도가 92.46%에서 96.08%로
+증가하여 평균 3.63%p의 paired gain을 보였고 5개 seed 모두에서 성능이 향상됐다.
 HAR-3의 초기 paired 평가에서는 정확도가 98.70%에서 99.65%로 증가했고 test 오류가
 81개에서 22개로 감소했다. 이 결과는 BFA에 특화된 sensing-aware generation이
 in-domain 행동 인식 성능을 향상시킬 수 있음을 보여준다. 반면 cross-participant

@@ -1,0 +1,18 @@
+\begin{table}[t]
+\centering
+\caption{BeamDiff augmentation-ratio sweep on HAR-1. Accuracy is reported as the mean and sample standard deviation over five paired BeamSense initialization seeds.}
+\label{tab:beamdiff_ratio_sweep}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{rrrrr}
+\toprule
+Synthetic ratio & Synthetic windows & Accuracy (\%) & Paired gain & Improved \\
+\midrule
+0\%   & 0      & $92.46 \pm 2.63$ & --       & --  \\
+25\%  & 7,132  & $93.15 \pm 2.80$ & +0.69 pp & 4/5 \\
+50\%  & 14,264 & $94.70 \pm 1.78$ & +2.25 pp & 4/5 \\
+75\%  & 21,397 & $95.49 \pm 0.62$ & +3.03 pp & 5/5 \\
+100\% & 28,529 & $96.08 \pm 1.18$ & +3.63 pp & 5/5 \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
